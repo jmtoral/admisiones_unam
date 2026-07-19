@@ -345,68 +345,11 @@ summary {{ cursor:pointer; color:var(--text-secondary); font-size:13px; }}
 </div>"""
 
 
-REPO_URL = "https://github.com/jmtoral/admisiones_unam"
-FAVICON = ("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' "
-           "viewBox='0 0 100 100'><text y='.9em' font-size='88'>%F0%9F%93%88</text></svg>")
-
-
-def build_site(inner: str) -> str:
-    """Envuelve el contenido en una página HTML autónoma para GitHub Pages,
-    con toggle de tema y enlace al repositorio."""
-    head = f"""<!doctype html>
-<html lang="es">
-<head>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>El salto de 2026 · Resultados UNAM</title>
-<meta name="description" content="Distribuciones de aciertos por carrera-campus en el concurso de selección UNAM: 2021-2025 vs 2026.">
-<link rel="icon" href="{FAVICON}">
-<style>
-  html,body {{ margin:0; background:#f9f9f7; }}
-  @media (prefers-color-scheme:dark) {{ html:not([data-theme="light"]),
-    html:not([data-theme="light"]) body {{ background:#0d0d0d; }} }}
-  html[data-theme="dark"], html[data-theme="dark"] body {{ background:#0d0d0d; }}
-  .site-bar {{ max-width:1080px; margin:0 auto; padding:14px 24px 0;
-    display:flex; align-items:center; gap:12px; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }}
-  .site-bar a, .site-bar button {{ font-size:13px; color:#52514e; text-decoration:none;
-    background:none; border:1px solid rgba(11,11,11,.15); border-radius:7px;
-    padding:5px 10px; cursor:pointer; }}
-  @media (prefers-color-scheme:dark) {{ html:not([data-theme="light"]) .site-bar a,
-    html:not([data-theme="light"]) .site-bar button {{ color:#c3c2b7; border-color:rgba(255,255,255,.18); }} }}
-  html[data-theme="dark"] .site-bar a, html[data-theme="dark"] .site-bar button {{
-    color:#c3c2b7; border-color:rgba(255,255,255,.18); }}
-  .site-bar .sp {{ margin-left:auto; }}
-</style>
-</head>
-<body>
-<div class="site-bar">
-  <span class="sp"></span>
-  <a href="{REPO_URL}" target="_blank" rel="noopener">Repositorio ↗</a>
-  <button id="themeBtn" type="button" aria-label="Cambiar tema">◐ Tema</button>
-</div>
-"""
-    toggle = """
-<script>
-(function(){
-  var b=document.getElementById('themeBtn'), r=document.documentElement;
-  b.addEventListener('click',function(){
-    var cur=r.getAttribute('data-theme');
-    var dark=cur?cur==='dark':matchMedia('(prefers-color-scheme:dark)').matches;
-    r.setAttribute('data-theme', dark?'light':'dark');
-  });
-})();
-</script>
-</body></html>"""
-    return head + inner + toggle
-
-
 def main() -> None:
     ap = argparse.ArgumentParser(description="Comparativa 2026 vs años previos")
     ap.add_argument("--top", type=int, default=TOP_K, help="número de paneles")
     ap.add_argument("--png", action="store_true",
                     help="salida estática (sin tooltip), pensada para exportar PNG")
-    ap.add_argument("--site", action="store_true",
-                    help="genera docs/index.html (sitio GitHub Pages, 50 paneles)")
     args = ap.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -422,16 +365,6 @@ def main() -> None:
         "d_25_26": o["med"][2026] - o["med"][2025], "w1": round(o["w1"], 2),
     } for o in offers]).to_csv(OUT_DIR / "comparativa_2026_2025.csv",
                                index=False, encoding="utf-8")
-
-    if args.site:
-        top = 50 if args.top == TOP_K else args.top
-        inner = build_inner(offers, summary, top_k=top, png=False)
-        docs = ROOT / "docs"
-        docs.mkdir(exist_ok=True)
-        (docs / "index.html").write_text(build_site(inner), encoding="utf-8")
-        (docs / ".nojekyll").write_text("", encoding="utf-8")
-        print(f"Sitio generado: docs/index.html ({top} paneles)")
-        return
 
     suffix = "" if args.top == TOP_K else f"_top{args.top}"
     inner = build_inner(offers, summary, top_k=args.top, png=args.png)

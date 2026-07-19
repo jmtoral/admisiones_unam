@@ -601,19 +601,22 @@ Por ello, en el repositorio:
 - **Análisis** (en `analysis/`, salidas en `analysis/output/`):
   - `top20_medianas.py` — ridgeline de las 20 carreras con mayor mediana de aciertos.
   - `comparativa_2026.py` — distribuciones por carrera-campus, 2021–2025 vs 2026,
-    ordenadas por distancia de Wasserstein. `--top N`, `--png`, `--site`.
+    ordenadas por distancia de Wasserstein. `--top N`, `--png`.
   - `casi_perfecto_2026.py` — distribución agregada por año y proporción de
     puntajes altos (≥100 y ≥110).
   - `casi_cero_2026.py` — el otro extremo: proporción de puntajes ultra-bajos
     (<20 y <10), casi inexistentes hasta 2026.
+  - `brecha_2026.py` — fan de percentiles (p10–p90): en 2026 la distribución no
+    se comprimió, se ensanchó.
   - `minimo_ingreso.py` — evolución 2021–2026 del puntaje mínimo de ingreso
     (`aciertos_minimos`); top 50 ofertas por incremento 2025→2026.
 
 ### Sitio (GitHub Pages)
 
 Sitio estático servido desde `docs/` (rama `main`):
-**https://jmtoral.github.io/admisiones_unam/** — comparativa 2026 de las 50
-ofertas que más cambiaron. Se regenera con `python analysis/comparativa_2026.py --site`.
+**https://jmtoral.github.io/admisiones_unam/** — galería con las visualizaciones
+interactivas. Se genera con `python analysis/site.py` (una página por análisis +
+índice).
 
 ### Posibles mejoras
 

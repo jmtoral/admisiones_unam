@@ -1,0 +1,57 @@
+
+<style>
+.viz-root { color-scheme:light; --surface-1:#fcfcfb; --plane:#f9f9f7;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --blue:#3987e5; --hl:#e0342a;
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:var(--plane); color:var(--text-primary); padding:24px; max-width:1000px; margin:0 auto; }
+@media (prefers-color-scheme:dark) { :root:where(:not([data-theme="light"])) .viz-root {
+  color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d; --text-primary:#fff;
+  --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --axis:#383835;
+  --border:rgba(255,255,255,.10); --blue:#6da7ec; --hl:#ff5c4f; } }
+:root[data-theme="dark"] .viz-root { color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d;
+  --text-primary:#fff; --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
+  --axis:#383835; --border:rgba(255,255,255,.10); --blue:#6da7ec; --hl:#ff5c4f; }
+.viz-root h1 { font-size:22px; margin:0 0 4px; text-wrap:balance; }
+.sub { color:var(--text-secondary); font-size:14px; margin:0 0 10px; line-height:1.5; }
+.headline { background:var(--surface-1); border:1px solid var(--border);
+  border-left:3px solid var(--hl); border-radius:8px; padding:11px 13px;
+  margin:12px 0 14px; font-size:14px; line-height:1.55; }
+.headline b { color:var(--hl); }
+.card { background:var(--surface-1); border:1px solid var(--border); border-radius:10px; padding:14px 12px 8px; }
+.legend { display:flex; gap:16px; align-items:center; font-size:12.5px;
+  color:var(--text-secondary); margin:4px 0 10px; flex-wrap:wrap; }
+.legend .sw { display:inline-block; width:20px; height:11px; border-radius:3px; vertical-align:middle; margin-right:6px; border:1px solid var(--border); }
+.legend i { display:inline-block; width:22px; border-top:2px solid; vertical-align:middle; margin-right:6px; }
+.grid { stroke:var(--grid); stroke-width:1; }
+.axl { fill:var(--muted); font-size:12px; font-variant-numeric:tabular-nums; }
+.axl26 { fill:var(--hl); font-size:12.5px; font-weight:700; font-variant-numeric:tabular-nums; }
+.band-out { fill:var(--blue); fill-opacity:.16; }
+.band-iqr { fill:var(--blue); fill-opacity:.34; }
+.med { fill:none; stroke:var(--text-primary); stroke-width:2.6; }
+.corte { fill:none; stroke:var(--hl); stroke-width:2; stroke-dasharray:5 4; }
+.dot { fill:var(--text-primary); } .dot26 { fill:var(--text-primary); }
+.rlab { font-size:11.5px; font-variant-numeric:tabular-nums; }
+.rlab.p90,.rlab.p75,.rlab.p25,.rlab.p10 { fill:var(--text-secondary); }
+.rlab.med-lab { fill:var(--text-primary); font-weight:700; }
+.rlab.corte-lab { fill:var(--hl); font-weight:700; }
+.note { color:var(--muted); font-size:12px; margin:14px 0 0; line-height:1.5; }
+</style>
+<div class="viz-root" data-palette="#3987e5,#e0342a">
+  <h1>¿Subieron parejo? La forma de la distribución · UNAM</h1>
+  <p class="sub">Percentiles del aciertos de todos los sustentantes por año
+  (p10, p25, mediana, p75, p90) y el corte mínimo de ingreso. Si todo subiera
+  parejo, la banda solo se desplazaría hacia arriba sin cambiar de grosor.</p>
+  <div class="headline">
+    En 2026 la distribución <b>no se comprimió: se ensanchó</b>. El cuartil alto
+    (p75) saltó <b>+24</b> y la mediana +18, pero el bajo (p10)
+    solo +3. El rango intercuartil pasó de <b>25 a 43</b>
+    aciertos: la mitad de arriba se disparó y la de abajo se quedó.
+  </div>
+  <div class="legend"><span><span class="sw" style="background:var(--blue);opacity:.34"></span>rango intercuartil (p25–p75)</span><span><span class="sw" style="background:var(--blue);opacity:.16"></span>p10–p90</span><span><i style="border-color:var(--text-primary);border-top-width:3px"></i>mediana</span><span><i style="border-color:var(--hl);border-top-style:dashed"></i>corte mínimo de ingreso</span></div>
+  <div class="card"><svg viewBox="0 0 900 440" width="100%" preserveAspectRatio="xMidYMid meet"><line x1="46" y1="334.5" x2="804" y2="334.5" class="grid"/><text x="38" y="338.5" class="axl" text-anchor="end">40</text><line x1="46" y1="247.1" x2="804" y2="247.1" class="grid"/><text x="38" y="251.1" class="axl" text-anchor="end">60</text><line x1="46" y1="159.8" x2="804" y2="159.8" class="grid"/><text x="38" y="163.8" class="axl" text-anchor="end">80</text><line x1="46" y1="72.4" x2="804" y2="72.4" class="grid"/><text x="38" y="76.4" class="axl" text-anchor="end">100</text><text x="46.0" y="418.0" class="axl" text-anchor="middle">2021</text><text x="197.6" y="418.0" class="axl" text-anchor="middle">2022</text><text x="349.2" y="418.0" class="axl" text-anchor="middle">2023</text><text x="500.8" y="418.0" class="axl" text-anchor="middle">2024</text><text x="652.4" y="418.0" class="axl" text-anchor="middle">2025</text><text x="804.0" y="418.0" class="axl26" text-anchor="middle">2026</text><text x="46" y="18.0" class="axl" text-anchor="start">aciertos</text><polygon class="band-out" points="46.0,146.7 197.6,151.0 349.2,146.7 500.8,137.9 652.4,133.6 804.0,50.6 804.0,343.2 652.4,356.3 500.8,360.7 349.2,356.3 197.6,356.3 46.0,352.0"/><polygon class="band-iqr" points="46.0,216.6 197.6,220.9 349.2,216.6 500.8,212.2 652.4,212.2 804.0,107.4 804.0,295.2 652.4,330.1 500.8,330.1 349.2,325.7 197.6,330.1 46.0,325.7"/><polyline class="corte" points="46.0,203.4 197.6,212.2 349.2,234.0 500.8,234.0 652.4,220.9 804.0,146.7"/><polyline class="med" points="46.0,282.1 197.6,286.4 349.2,282.1 500.8,282.1 652.4,282.1 804.0,203.4"/><circle cx="46.0" cy="282.1" r="2.4" class="dot"/><circle cx="197.6" cy="286.4" r="2.4" class="dot"/><circle cx="349.2" cy="282.1" r="2.4" class="dot"/><circle cx="500.8" cy="282.1" r="2.4" class="dot"/><circle cx="652.4" cy="282.1" r="2.4" class="dot"/><circle cx="804.0" cy="203.4" r="3.2" class="dot26"/><text x="812" y="54.6" class="rlab p90">p90 105</text><text x="812" y="111.4" class="rlab p75">p75 92</text><text x="812" y="207.4" class="rlab med-lab">mediana 70</text><text x="812" y="150.7" class="rlab corte-lab">corte mín. 83</text><text x="812" y="299.2" class="rlab p25">p25 49</text><text x="812" y="347.2" class="rlab p10">p10 38</text></svg></div>
+  <p class="note">Fuente: resultados DGAE-UNAM 2021–2026. Solo quienes presentaron
+  examen. Corte mínimo = mediana de <i>Aciertos Mínimos</i> entre ofertas.
+  Análisis descriptivo: muestra corrimientos, no causas.</p>
+</div>
