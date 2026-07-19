@@ -598,8 +598,18 @@ Por ello, en el repositorio:
   `consolidate`): implementado y validado.
 - **Años 2021–2026**: descubiertos, bajados y consolidados. DOM idéntico los seis
   años; 0 fallos, 0 pendientes. Totales en "Replicación paso a paso".
-- **Análisis**: `analysis/top20_medianas.py` genera el ridgeline de las 20
-  carreras con mayor mediana de aciertos (HTML + PNG en `analysis/output/`).
+- **Análisis** (en `analysis/`, salidas en `analysis/output/`):
+  - `top20_medianas.py` — ridgeline de las 20 carreras con mayor mediana de aciertos.
+  - `comparativa_2026.py` — distribuciones por carrera-campus, 2021–2025 vs 2026,
+    ordenadas por distancia de Wasserstein. `--top N`, `--png`, `--site`.
+  - `casi_perfecto_2026.py` — distribución agregada por año y proporción de
+    puntajes altos (≥100 y ≥110).
+
+### Sitio (GitHub Pages)
+
+Sitio estático servido desde `docs/` (rama `main`):
+**https://jmtoral.github.io/admisiones_unam/** — comparativa 2026 de las 50
+ofertas que más cambiaron. Se regenera con `python analysis/comparativa_2026.py --site`.
 
 ### Posibles mejoras
 
