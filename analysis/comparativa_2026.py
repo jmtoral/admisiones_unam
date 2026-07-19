@@ -19,6 +19,7 @@ Salidas en analysis/output/:
 
 from __future__ import annotations
 
+import argparse
 import html as _html
 import json
 from pathlib import Path
@@ -191,8 +192,9 @@ def build_table(offers: list[dict]) -> str:
     return f'<table class=tbl><thead>{head}</thead><tbody>{"".join(rows)}</tbody></table>'
 
 
-def build_inner(offers: list[dict], summary: dict) -> str:
-    top = offers[:TOP_K]
+def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K,
+                png: bool = False) -> str:
+    top = offers[:top_k]
     facets = "".join(facet_card(o) for o in top)
     table = build_table(offers)
     prev = summary["prev_shifts"]
@@ -298,6 +300,9 @@ summary {{ cursor:pointer; color:var(--text-secondary); font-size:13px; }}
 })();
 </script>"""
 
+    if png:            # PNG estático: sin tooltip interactivo
+        js = ""
+
     legend = (
         '<div class="legend">'
         '<span><i style="border-top-color:var(--y2021)"></i>2021</span>'
@@ -312,7 +317,7 @@ summary {{ cursor:pointer; color:var(--text-secondary); font-size:13px; }}
   <h1>El salto de 2026: aciertos por carrera-campus · UNAM</h1>
   <p class="sub">Distribución de aciertos por oferta (carrera + campus). Años
   <b>2021–2025 en tonos sobrios</b>, <b style="color:var(--y2026)">2026 resaltado</b>
-  (año del examen en línea). Paneles: las {TOP_K} ofertas cuya distribución 2026
+  (año del examen en línea). Paneles: las {top_k} ofertas cuya distribución 2026
   más difiere de 2025.</p>
   <div class="headline">
     De 2025 a 2026 la mediana de aciertos subió en <b>las {summary['n_offers']}
@@ -333,13 +338,19 @@ summary {{ cursor:pointer; color:var(--text-secondary); font-size:13px; }}
 
 
 def main() -> None:
+    ap = argparse.ArgumentParser(description="Comparativa 2026 vs años previos")
+    ap.add_argument("--top", type=int, default=TOP_K, help="número de paneles")
+    ap.add_argument("--png", action="store_true",
+                    help="salida estática (sin tooltip), pensada para exportar PNG")
+    args = ap.parse_args()
+
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     offers, summary = load()
     print(f"ofertas comparables: {summary['n_offers']} "
           f"(subieron {summary['up']}, bajaron {summary['down']})")
     print(f"corrimiento 2025→2026: +{summary['shift_2526']:.2f} mediana")
 
-    # CSV resumen
+    # CSV resumen (todas las ofertas; independiente de --top)
     pd.DataFrame([{
         "carrera": o["carrera"], "campus": o["campus"], "modalidad": o["modalidad"],
         **{f"med_{y}": o["med"].get(y, "") for y in YEARS},
@@ -347,13 +358,14 @@ def main() -> None:
     } for o in offers]).to_csv(OUT_DIR / "comparativa_2026_2025.csv",
                                index=False, encoding="utf-8")
 
-    inner = build_inner(offers, summary)
-    (OUT_DIR / "comparativa_2026.html").write_text(inner, encoding="utf-8")
+    suffix = "" if args.top == TOP_K else f"_top{args.top}"
+    inner = build_inner(offers, summary, top_k=args.top, png=args.png)
+    (OUT_DIR / f"comparativa_2026{suffix}.html").write_text(inner, encoding="utf-8")
     preview = ("<!doctype html><html lang=es><head><meta charset=utf-8>"
                "<title>Comparativa 2026</title></head><body style='margin:0'>"
                + inner + "</body></html>")
-    (OUT_DIR / "_comparativa_preview.html").write_text(preview, encoding="utf-8")
-    print("HTML generado en", OUT_DIR)
+    (OUT_DIR / f"_comparativa_preview{suffix}.html").write_text(preview, encoding="utf-8")
+    print(f"HTML generado ({args.top} paneles, png={args.png}) en {OUT_DIR}")
 
 
 if __name__ == "__main__":

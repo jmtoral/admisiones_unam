@@ -17,7 +17,7 @@ data/.browser_profile/
 logs/
 
 # --- Artefactos intermedios del análisis ------------------------------------
-analysis/output/_preview.html
+analysis/output/_*.html
 
 # --- Python -----------------------------------------------------------------
 __pycache__/
