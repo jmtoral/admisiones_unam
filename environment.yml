@@ -1,0 +1,13 @@
+name: unam-scraper
+channels:
+  - conda-forge
+dependencies:
+  - python=3.11
+  - requests
+  - beautifulsoup4
+  - lxml
+  - pandas
+  # Playwright es REQUERIDO en la práctica (el sitio está tras Cloudflare con
+  # reto JavaScript). Se instala por pip tras crear el ambiente:
+  #   pip install playwright && playwright install chromium
+  # Además requiere Google Chrome o Edge instalado (channel="chrome").

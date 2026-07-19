@@ -1,0 +1,5 @@
+# Normaliza finales de línea: LF en el repo, sin importar el SO del que se sube.
+* text=auto eol=lf
+
+# Binarios (no tocar).
+*.png binary

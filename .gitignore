@@ -1,0 +1,35 @@
+# --- Datos crudos y derivados pesados (se regeneran con el pipeline) --------
+# Caché de HTML crudo (cientos de MB). Se rebaja con: python -m src.scrape
+data/raw_html/
+# CSV por tabla (~100+ MB en 1253 archivos). Se regeneran con scrape.
+data/tables/
+# Maestro por aspirante (~90+ MB, supera el límite de 100 MB de GitHub).
+# Se regenera con: python -m src.consolidate. Ver README para publicarlo aparte.
+data/consolidated/resultados_todos.csv
+# Perfil persistente del navegador (cookies de Cloudflare; no versionar).
+data/.browser_profile/
+
+# Se CONSERVAN en el repo (chicos y útiles):
+#   data/manifest.csv                        (índice de tablas)
+#   data/consolidated/metadata_carreras.csv  (agregado por carrera-campus-año)
+
+# --- Logs -------------------------------------------------------------------
+logs/
+
+# --- Artefactos intermedios del análisis ------------------------------------
+analysis/output/_preview.html
+
+# --- Python -----------------------------------------------------------------
+__pycache__/
+*.py[cod]
+*.egg-info/
+.ipynb_checkpoints/
+.venv/
+env/
+
+# --- Config local de Claude Code (allowlists/paths de la máquina) -----------
+.claude/
+
+# --- Sistema operativo ------------------------------------------------------
+.DS_Store
+Thumbs.db
