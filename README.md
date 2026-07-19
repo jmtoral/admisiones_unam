@@ -1,11 +1,27 @@
 # Resultados UNAM (DGAE) a CSV
 
 Extrae a archivos CSV los resultados del Concurso de Selección de Ingreso a
-Licenciatura de la UNAM, publicados por la DGAE, para varios años y modalidades
-(2021 a 2026). El objetivo es habilitar comparativas entre años por carrera,
-campus y modalidad.
+Licenciatura de la UNAM, publicados por la DGAE, para los años 2021 a 2026 y sus
+modalidades. Habilita comparativas entre años por carrera, campus y modalidad.
 
-La fuente son páginas HTML estáticas y públicas.
+La fuente son páginas HTML públicas.
+
+---
+
+## Glosario
+
+| Sigla | Significado |
+|---|---|
+| **UNAM** | Universidad Nacional Autónoma de México |
+| **DGAE** | Dirección General de Administración Escolar (publica los resultados) |
+| **SUAYED** | Sistema Universidad Abierta y Educación a Distancia |
+| **DOM** | Document Object Model — estructura del HTML de una página |
+| **HTML** | HyperText Markup Language — formato de las páginas de origen |
+| **CSV** | Comma-Separated Values — formato de salida tabular |
+| **HTTP** | HyperText Transfer Protocol — protocolo de las peticiones de red |
+| **AIMD** | Additive Increase / Multiplicative Decrease — esquema del throttle |
+| **KDE** | Kernel Density Estimation — densidad usada en el análisis |
+| **CDP** | Chrome DevTools Protocol — canal de control del navegador |
 
 ---
 
@@ -17,49 +33,50 @@ Tres fases independientes y reanudables:
    modalidad, y construye `manifest.csv` con una fila por tabla.
 2. **Extracción** (`scrape.py`): descarga cada tabla, cachea el HTML crudo,
    parsea metadata y tabla, y guarda un CSV por tabla.
-3. **Consolidación** (`consolidate.py`): concatena todo en CSVs maestros.
+3. **Consolidación** (`consolidate.py`): concatena todo en CSV maestros.
+
+```mermaid
+flowchart TD
+    IDX["Páginas índice DGAE<br/>(Licenciatura / SUAYED)"] --> DISC["discover.py"]
+    DISC --> MAN[("manifest.csv")]
+    MAN --> SCR["scrape.py"]
+
+    SCR --> REQ
+    subgraph RED["http_client.py — red"]
+        REQ{"requests<br/>(sonda)"} -- "403 Cloudflare" --> PW["Playwright<br/>+ Chrome real"]
+        REQ -. "200" .-> CACHE
+        PW --> CACHE[("caché raw_html")]
+    end
+
+    CACHE --> PARSE["parsing.py<br/>(h2, h5, tabla)"]
+    PARSE --> TAB[("CSV por tabla")]
+    TAB --> CONS["consolidate.py"]
+    CONS --> RES[("resultados_todos.csv")]
+    CONS --> META[("metadata_carreras.csv")]
+    RES --> ANA["analysis/"]
+```
 
 ---
 
-## Entorno de ejecución
+## Entorno
 
-**Corre esto en local, en un ambiente conda.**
+Ejecución local en un ambiente conda.
 
-Razones técnicas:
-
-- La carga es **I/O-bound** (red y parseo de HTML). Una GPU o TPU no aporta
-  nada. Gastar unidades de cómputo premium aquí no compra velocidad.
-- Los servicios de notebook en la nube entregan una **IP de datacenter**, que es
-  justo la señal que los filtros anti-bot penalizan primero. Una IP residencial
-  o de oficina pasa con más facilidad.
-- Sus runtimes son **efímeros** (desconexión por inactividad, tope de horas). Un
-  barrido largo puede morir a media corrida.
+- **Python 3.11**
+- **Paquetería** (conda-forge): `requests`, `beautifulsoup4`, `lxml`, `pandas`
+- **Playwright** (pip): requerido para atravesar el reto JavaScript de Cloudflare
+  (ver "Comportamiento de red")
+- **Google Chrome o Microsoft Edge** instalado en el sistema: el navegador se
+  maneja vía `channel="chrome"`
 
 ### Setup
 
 ```bash
-conda create -n unam-scraper python=3.11 -y
+conda env create -f environment.yml      # crea el env 'unam-scraper' (Python 3.11)
 conda activate unam-scraper
-conda install -c conda-forge requests beautifulsoup4 lxml pandas -y
-
-# Playwright es REQUERIDO en la práctica: el sitio está detrás de Cloudflare
-# con reto JavaScript y ningún cliente HTTP plano lo pasa (ver "Comportamiento
-# de red"). Se instala por pip:
-pip install playwright && playwright install chromium
+pip install playwright
+playwright install chromium
 ```
-
-Además se necesita **Google Chrome (o Edge) instalado** en el sistema: el
-fallback maneja el navegador real vía `channel="chrome"`, que atraviesa
-Cloudflare de forma más fiable que el Chromium de pruebas de Playwright.
-
-Se incluye `environment.yml` para reproducir el ambiente:
-
-```bash
-conda env create -f environment.yml
-conda activate unam-scraper
-```
-
-Python 3.10 o superior.
 
 ---
 
@@ -196,19 +213,15 @@ Cada fase es reanudable: si la cortas y la relanzas, retoma donde iba.
 
 ---
 
-## Replicación paso a paso (probado de punta a punta)
+## Replicación paso a paso
 
-Esta es la secuencia real con la que se bajaron y consolidaron los seis años
-(2021–2026). Reprodúcela tal cual.
+Secuencia con la que se bajaron y consolidaron los seis años (2021–2026).
 
 ### 0. Requisitos del sistema
 
 - **Miniconda/Anaconda** con Python 3.11.
-- **Google Chrome (o Microsoft Edge) instalado** en el sistema. El scraper maneja
-  el navegador real vía `channel="chrome"` (ver "Comportamiento de red"). Sin un
-  Chrome real, el fallback no atraviesa Cloudflare.
-- Conexión con **IP residencial o de oficina** (una IP de datacenter dispara el
-  bloqueo anti-bot).
+- **Google Chrome (o Microsoft Edge) instalado** en el sistema. El navegador se
+  maneja vía `channel="chrome"` (ver "Comportamiento de red").
 
 ### 1. Ambiente
 
@@ -573,21 +586,17 @@ No asumas que el DOM de años viejos es idéntico al de 2026.
 
 ## Privacidad
 
-Los datos de origen son **públicos**: la DGAE los publica en abierto en su sitio,
-tabla por tabla. El identificador por fila es el **número de comprobante**, un
-**seudónimo** diseñado justamente para publicar resultados sin exponer nombres;
-no hay directorio público que lo ligue a una persona.
+Los datos de origen son públicos: la DGAE los publica en abierto, tabla por
+tabla. El identificador por fila es el **número de comprobante**, un seudónimo
+sin directorio público que lo ligue a una persona.
 
-Aun así, consolidar cientos de tablas dispersas en un solo archivo elimina la
-"oscuridad práctica" del origen. Por eso, en el repositorio:
+Consolidar cientos de tablas en un solo archivo reduce la dispersión del origen.
+Por ello, en el repositorio:
 
-- Se versiona el **agregado** (`metadata_carreras.csv`: oferta, aspirantes,
-  medianas por carrera-campus-año) — el entregable pensado para compartir.
-- **No** se versiona el maestro por aspirante (`resultados_todos.csv`); queda
-  local y se regenera con el pipeline. Además supera el límite de GitHub.
-
-Si publicas el detalle por aspirante, ten presente que es dato público y
-seudonimizado, pero valora el punto anterior.
+- Se versiona el agregado (`metadata_carreras.csv`: oferta, aspirantes y medianas
+  por carrera-campus-año).
+- No se versiona el maestro por aspirante (`resultados_todos.csv`); se mantiene
+  local y se regenera con el pipeline (además supera el límite de GitHub).
 
 ---
 
