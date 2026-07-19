@@ -361,17 +361,6 @@ python -m src.scrape
 python -m src.consolidate
 ```
 
-### Publicar `resultados_todos.csv` (supera el límite de GitHub)
-
-El maestro por aspirante pesa ~90 MB y no cabe en el repo. Para compartirlo:
-
-- **Comprimido** (`gzip resultados_todos.csv` → ~10–15 MB) o **Parquet**
-  (~5–10 MB) como *release asset* o en otro almacenamiento.
-- **GitHub Releases** admite hasta 2 GB por archivo sin inflar el repo.
-
-Para compartir públicamente, considera publicar solo el **agregado**
-(`metadata_carreras.csv`), que ya va en el repo (ver "Privacidad").
-
 ---
 
 ## Throttle adaptativo
