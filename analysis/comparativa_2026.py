@@ -127,12 +127,12 @@ def facet_svg(o: dict) -> str:
 
     parts = [f'<svg viewBox="0 0 {FW} {FH}" width="100%" '
              f'preserveAspectRatio="xMidYMid meet">']
-    # eje x mínimo
-    for t in (0, 60, 120):
+    # eje x mínimo (anclado para no cortar la etiqueta 120 en el borde)
+    for t, anchor in ((0, "start"), (60, "middle"), (120, "end")):
         parts.append(f'<line x1="{xpos(t):.1f}" y1="{BASE}" x2="{xpos(t):.1f}" '
                      f'y2="{BASE+3}" class="tick"/>')
-        parts.append(f'<text x="{xpos(t):.1f}" y="{BASE+14}" class="tickl" '
-                     f'text-anchor="middle">{t}</text>')
+        parts.append(f'<text x="{xpos(t):.1f}" y="{BASE+15}" class="tickl" '
+                     f'text-anchor="{anchor}">{t}</text>')
     parts.append(f'<line x1="{ML}" y1="{BASE}" x2="{FW-MR}" y2="{BASE}" class="axis"/>')
 
     def poly(d):
@@ -203,6 +203,9 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K,
     gl = "".join(f"--y{y}:{GREY_LIGHT[y]};" for y in GREY_LIGHT)
     gd = "".join(f"--y{y}:{GREY_DARK[y]};" for y in GREY_DARK)
 
+    s = 1.42 if png else 1.0   # escala tipográfica (el PNG necesita fuentes mayores)
+    lw = 1.3 if png else 1.0   # escala de grosor de línea
+
     css = f"""
 <style>
 .viz-root {{
@@ -229,13 +232,14 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K,
   --grid:#2c2c2a; --axis:#383835; --border:rgba(255,255,255,.10);
   {gd} --y2026:{HL_DARK};
 }}
-.viz-root h1 {{ font-size:20px; margin:0 0 4px; text-wrap:balance; }}
-.sub {{ color:var(--text-secondary); font-size:13px; margin:0 0 3px; line-height:1.5; }}
+.viz-root h1 {{ font-size:{20*s:.1f}px; margin:0 0 4px; text-wrap:balance; }}
+.sub {{ color:var(--text-secondary); font-size:{13*s:.1f}px; margin:0 0 3px; line-height:1.5; }}
+.method {{ color:var(--muted); font-size:{12*s:.1f}px; margin:0 0 2px; line-height:1.5; }}
 .headline {{ background:var(--surface-1); border:1px solid var(--border);
-  border-left:3px solid var(--y2026); border-radius:8px; padding:10px 12px;
-  margin:12px 0; font-size:13.5px; line-height:1.5; }}
+  border-left:{3*lw:.1f}px solid var(--y2026); border-radius:8px; padding:10px 12px;
+  margin:12px 0; font-size:{13.5*s:.1f}px; line-height:1.5; }}
 .headline b {{ color:var(--y2026); }}
-.legend {{ display:flex; gap:16px; align-items:center; font-size:12px;
+.legend {{ display:flex; gap:16px; align-items:center; font-size:{12*s:.1f}px;
   color:var(--text-secondary); margin:10px 0 4px; flex-wrap:wrap; }}
 .legend i {{ display:inline-block; width:22px; height:0; border-top-width:2px;
   border-top-style:solid; vertical-align:middle; margin-right:6px; }}
@@ -243,22 +247,22 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K,
 .facet {{ background:var(--surface-1); border:1px solid var(--border);
   border-radius:10px; padding:8px 8px 2px; margin:0; }}
 .facet figcaption {{ display:flex; flex-direction:column; line-height:1.25; }}
-.facet .ca {{ font-size:12px; font-weight:600; }}
-.facet .cc {{ font-size:10.5px; color:var(--muted); }}
-.facet .badge {{ font-size:10.5px; color:var(--text-secondary);
+.facet .ca {{ font-size:{12*s:.1f}px; font-weight:600; }}
+.facet .cc {{ font-size:{10.5*s:.1f}px; color:var(--muted); }}
+.facet .badge {{ font-size:{10.5*s:.1f}px; color:var(--text-secondary);
   font-variant-numeric:tabular-nums; margin:2px 0 0; }}
 .facet .badge b {{ color:var(--y2026); }}
 .axis {{ stroke:var(--axis); stroke-width:1; }}
 .tick {{ stroke:var(--axis); stroke-width:1; }}
-.tickl {{ fill:var(--muted); font-size:9px; font-variant-numeric:tabular-nums; }}
-.yr {{ fill:none; stroke-width:1.4; }}
+.tickl {{ fill:var(--muted); font-size:{9.5*s:.1f}px; font-variant-numeric:tabular-nums; }}
+.yr {{ fill:none; stroke-width:{1.4*lw:.2f}; }}
 .y2021 {{ stroke:var(--y2021); }} .y2022 {{ stroke:var(--y2022); }}
 .y2023 {{ stroke:var(--y2023); }} .y2024 {{ stroke:var(--y2024); }}
-.y2025 {{ stroke:var(--y2025); stroke-width:1.6; }}
-.y2026 {{ stroke:var(--y2026); stroke-width:2.4; }}
+.y2025 {{ stroke:var(--y2025); stroke-width:{1.6*lw:.2f}; }}
+.y2026 {{ stroke:var(--y2026); stroke-width:{2.4*lw:.2f}; }}
 .y2026-fill {{ fill:var(--y2026); fill-opacity:.13; }}
-.med25 {{ stroke:var(--y2025); stroke-width:1.4; }}
-.med26 {{ stroke:var(--y2026); stroke-width:2; }}
+.med25 {{ stroke:var(--y2025); stroke-width:{1.4*lw:.2f}; }}
+.med26 {{ stroke:var(--y2026); stroke-width:{2*lw:.2f}; }}
 .tip {{ position:fixed; pointer-events:none; z-index:9; background:var(--surface-1);
   color:var(--text-primary); border:1px solid var(--border); border-radius:8px;
   padding:8px 10px; font-size:11.5px; box-shadow:0 4px 14px rgba(0,0,0,.18);
@@ -317,8 +321,12 @@ summary {{ cursor:pointer; color:var(--text-secondary); font-size:13px; }}
   <h1>El salto de 2026: aciertos por carrera-campus · UNAM</h1>
   <p class="sub">Distribución de aciertos por oferta (carrera + campus). Años
   <b>2021–2025 en tonos sobrios</b>, <b style="color:var(--y2026)">2026 resaltado</b>
-  (año del examen en línea). Paneles: las {top_k} ofertas cuya distribución 2026
-  más difiere de 2025.</p>
+  (año del examen en línea).</p>
+  <p class="method"><b>Cómo se eligen los paneles:</b> de las {summary['n_offers']}
+  ofertas comparables (una carrera-campus con ≥{MIN_N} sustentantes en 2025 y 2026),
+  se muestran las <b>{top_k}</b> con mayor distancia de Wasserstein (W1) entre su
+  distribución de aciertos 2026 y 2025 — es decir, las que más cambiaron de un año
+  al otro.</p>
   <div class="headline">
     De 2025 a 2026 la mediana de aciertos subió en <b>las {summary['n_offers']}
     ofertas comparables — ninguna bajó</b>. El alza media fue de
@@ -337,11 +345,68 @@ summary {{ cursor:pointer; color:var(--text-secondary); font-size:13px; }}
 </div>"""
 
 
+REPO_URL = "https://github.com/jmtoral/admisiones_unam"
+FAVICON = ("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' "
+           "viewBox='0 0 100 100'><text y='.9em' font-size='88'>%F0%9F%93%88</text></svg>")
+
+
+def build_site(inner: str) -> str:
+    """Envuelve el contenido en una página HTML autónoma para GitHub Pages,
+    con toggle de tema y enlace al repositorio."""
+    head = f"""<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>El salto de 2026 · Resultados UNAM</title>
+<meta name="description" content="Distribuciones de aciertos por carrera-campus en el concurso de selección UNAM: 2021-2025 vs 2026.">
+<link rel="icon" href="{FAVICON}">
+<style>
+  html,body {{ margin:0; background:#f9f9f7; }}
+  @media (prefers-color-scheme:dark) {{ html:not([data-theme="light"]),
+    html:not([data-theme="light"]) body {{ background:#0d0d0d; }} }}
+  html[data-theme="dark"], html[data-theme="dark"] body {{ background:#0d0d0d; }}
+  .site-bar {{ max-width:1080px; margin:0 auto; padding:14px 24px 0;
+    display:flex; align-items:center; gap:12px; font-family:system-ui,-apple-system,"Segoe UI",sans-serif; }}
+  .site-bar a, .site-bar button {{ font-size:13px; color:#52514e; text-decoration:none;
+    background:none; border:1px solid rgba(11,11,11,.15); border-radius:7px;
+    padding:5px 10px; cursor:pointer; }}
+  @media (prefers-color-scheme:dark) {{ html:not([data-theme="light"]) .site-bar a,
+    html:not([data-theme="light"]) .site-bar button {{ color:#c3c2b7; border-color:rgba(255,255,255,.18); }} }}
+  html[data-theme="dark"] .site-bar a, html[data-theme="dark"] .site-bar button {{
+    color:#c3c2b7; border-color:rgba(255,255,255,.18); }}
+  .site-bar .sp {{ margin-left:auto; }}
+</style>
+</head>
+<body>
+<div class="site-bar">
+  <span class="sp"></span>
+  <a href="{REPO_URL}" target="_blank" rel="noopener">Repositorio ↗</a>
+  <button id="themeBtn" type="button" aria-label="Cambiar tema">◐ Tema</button>
+</div>
+"""
+    toggle = """
+<script>
+(function(){
+  var b=document.getElementById('themeBtn'), r=document.documentElement;
+  b.addEventListener('click',function(){
+    var cur=r.getAttribute('data-theme');
+    var dark=cur?cur==='dark':matchMedia('(prefers-color-scheme:dark)').matches;
+    r.setAttribute('data-theme', dark?'light':'dark');
+  });
+})();
+</script>
+</body></html>"""
+    return head + inner + toggle
+
+
 def main() -> None:
     ap = argparse.ArgumentParser(description="Comparativa 2026 vs años previos")
     ap.add_argument("--top", type=int, default=TOP_K, help="número de paneles")
     ap.add_argument("--png", action="store_true",
                     help="salida estática (sin tooltip), pensada para exportar PNG")
+    ap.add_argument("--site", action="store_true",
+                    help="genera docs/index.html (sitio GitHub Pages, 50 paneles)")
     args = ap.parse_args()
 
     OUT_DIR.mkdir(parents=True, exist_ok=True)
@@ -357,6 +422,16 @@ def main() -> None:
         "d_25_26": o["med"][2026] - o["med"][2025], "w1": round(o["w1"], 2),
     } for o in offers]).to_csv(OUT_DIR / "comparativa_2026_2025.csv",
                                index=False, encoding="utf-8")
+
+    if args.site:
+        top = 50 if args.top == TOP_K else args.top
+        inner = build_inner(offers, summary, top_k=top, png=False)
+        docs = ROOT / "docs"
+        docs.mkdir(exist_ok=True)
+        (docs / "index.html").write_text(build_site(inner), encoding="utf-8")
+        (docs / ".nojekyll").write_text("", encoding="utf-8")
+        print(f"Sitio generado: docs/index.html ({top} paneles)")
+        return
 
     suffix = "" if args.top == TOP_K else f"_top{args.top}"
     inner = build_inner(offers, summary, top_k=args.top, png=args.png)
