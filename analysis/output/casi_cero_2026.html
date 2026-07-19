@@ -1,0 +1,63 @@
+
+<style>
+.viz-root { color-scheme:light; --surface-1:#fcfcfb; --plane:#f9f9f7;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10);
+  --y2021:#d7d6cf;--y2022:#bfbeb4;--y2023:#a1a099;--y2024:#83827b;--y2025:#5c5b55; --y2026:#e0342a;
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:var(--plane); color:var(--text-primary); padding:24px; max-width:1080px; margin:0 auto; }
+@media (prefers-color-scheme:dark) { :root:where(:not([data-theme="light"])) .viz-root {
+  color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d; --text-primary:#fff;
+  --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --axis:#383835;
+  --border:rgba(255,255,255,.10); --y2021:#3a3a37;--y2022:#4f4e49;--y2023:#68675f;--y2024:#8a897f;--y2025:#b4b3a7; --y2026:#ff5c4f; } }
+:root[data-theme="dark"] .viz-root { color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d;
+  --text-primary:#fff; --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
+  --axis:#383835; --border:rgba(255,255,255,.10); --y2021:#3a3a37;--y2022:#4f4e49;--y2023:#68675f;--y2024:#8a897f;--y2025:#b4b3a7; --y2026:#ff5c4f; }
+.viz-root h1 { font-size:21px; margin:0 0 4px; text-wrap:balance; }
+.sub { color:var(--text-secondary); font-size:13.5px; margin:0 0 10px; line-height:1.5; }
+.headline { background:var(--surface-1); border:1px solid var(--border);
+  border-left:3px solid var(--y2026); border-radius:8px; padding:11px 13px;
+  margin:12px 0 16px; font-size:14px; line-height:1.55; }
+.headline b { color:var(--y2026); }
+.grid2 { display:grid; grid-template-columns:1fr 1fr; gap:14px; }
+.card { background:var(--surface-1); border:1px solid var(--border);
+  border-radius:10px; padding:12px 12px 6px; }
+.card h2 { font-size:14px; margin:0 0 2px; }
+.card p { font-size:12px; color:var(--muted); margin:0 0 6px; line-height:1.45; }
+.grid { stroke:var(--grid); stroke-width:1; }
+.axis { stroke:var(--axis); stroke-width:1.2; }
+.axl { fill:var(--muted); font-size:11px; font-variant-numeric:tabular-nums; }
+.axl26 { fill:var(--y2026); font-size:11.5px; font-weight:700; font-variant-numeric:tabular-nums; }
+.axt { fill:var(--text-secondary); font-size:11px; }
+.vlab { fill:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; }
+.vlab26 { fill:var(--y2026); font-size:12px; font-weight:700; font-variant-numeric:tabular-nums; }
+.bar { fill:var(--y2024); } .bar26 { fill:var(--y2026); }
+.b20 { fill:var(--y2024); } .b10 { fill:var(--y2025); }
+.b20-26 { fill:var(--y2026); fill-opacity:.45; } .b10-26 { fill:var(--y2026); }
+.note { color:var(--muted); font-size:12px; margin:14px 0 0; line-height:1.5; }
+@media (max-width:720px) { .grid2 { grid-template-columns:1fr; } }
+</style>
+<div class="viz-root" data-palette="#e0342a">
+  <h1>El otro extremo: puntajes casi cero · UNAM</h1>
+  <p class="sub">Todos los sustentantes de licenciatura, 2021–2026. En un examen
+  de opción múltiple, por puro azar casi nadie baja de ~25 aciertos: una cola muy
+  baja no debería existir.</p>
+  <div class="headline">
+    El tramo bajo <b>común</b> (&lt;30 aciertos) casi no cambió: 2.4% en
+    2026, como en años previos. Pero apareció una cola <b>ultra-baja</b>:
+    <b>763</b> sustentantes con &lt;20 aciertos y <b>481</b> con &lt;10
+    en 2026 — contra un promedio de 54 y 3 en 2021–2025.
+    Son puntajes casi imposibles por azar.
+  </div>
+  <div class="grid2">
+    <div class="card"><h2>Tramo bajo común (&lt;30) por año</h2>
+      <p>Estable en ~2.4–3.2% todos los años, 2026 incluido. Sin anomalía.</p>
+      <svg viewBox="0 0 620 300" width="100%" preserveAspectRatio="xMidYMid meet"><line x1="46" y1="260.0" x2="606" y2="260.0" class="grid"/><text x="40" y="264.0" class="axl" text-anchor="end">0%</text><line x1="46" y1="199.0" x2="606" y2="199.0" class="grid"/><text x="40" y="203.0" class="axl" text-anchor="end">1%</text><line x1="46" y1="138.0" x2="606" y2="138.0" class="grid"/><text x="40" y="142.0" class="axl" text-anchor="end">2%</text><line x1="46" y1="77.0" x2="606" y2="77.0" class="grid"/><text x="40" y="81.0" class="axl" text-anchor="end">3%</text><line x1="46" y1="16.0" x2="606" y2="16.0" class="grid"/><text x="40" y="20.0" class="axl" text-anchor="end">4%</text><line x1="46" y1="260" x2="606" y2="260" class="axis"/><rect class="bar" x="69.3" y="112.3" width="46.7" height="147.7" rx="2"/><text x="92.7" y="276" class="axl" text-anchor="middle">2021</text><text x="92.7" y="108.3" class="vlab" text-anchor="middle">2.4%</text><rect class="bar" x="162.7" y="79.2" width="46.7" height="180.8" rx="2"/><text x="186.0" y="276" class="axl" text-anchor="middle">2022</text><text x="186.0" y="75.2" class="vlab" text-anchor="middle">3.0%</text><rect class="bar" x="256.0" y="101.4" width="46.7" height="158.6" rx="2"/><text x="279.3" y="276" class="axl" text-anchor="middle">2023</text><text x="279.3" y="97.4" class="vlab" text-anchor="middle">2.6%</text><rect class="bar" x="349.3" y="66.0" width="46.7" height="194.0" rx="2"/><text x="372.7" y="276" class="axl" text-anchor="middle">2024</text><text x="372.7" y="62.0" class="vlab" text-anchor="middle">3.2%</text><rect class="bar" x="442.7" y="93.4" width="46.7" height="166.6" rx="2"/><text x="466.0" y="276" class="axl" text-anchor="middle">2025</text><text x="466.0" y="89.4" class="vlab" text-anchor="middle">2.7%</text><rect class="bar26" x="536.0" y="112.2" width="46.7" height="147.8" rx="2"/><text x="559.3" y="276" class="axl26" text-anchor="middle">2026</text><text x="559.3" y="108.2" class="vlab26" text-anchor="middle">2.4%</text></svg></div>
+    <div class="card"><h2>Cola ultra-baja (&lt;20 y &lt;10) por año</h2>
+      <p>Casi inexistente 2021–2025; surge de golpe en 2026.</p>
+      <svg viewBox="0 0 620 300" width="100%" preserveAspectRatio="xMidYMid meet"><line x1="46" y1="260.0" x2="606" y2="260.0" class="grid"/><text x="40" y="264.0" class="axl" text-anchor="end">0.0%</text><line x1="46" y1="178.7" x2="606" y2="178.7" class="grid"/><text x="40" y="182.7" class="axl" text-anchor="end">0.2%</text><line x1="46" y1="97.3" x2="606" y2="97.3" class="grid"/><text x="40" y="101.3" class="axl" text-anchor="end">0.4%</text><line x1="46" y1="16.0" x2="606" y2="16.0" class="grid"/><text x="40" y="20.0" class="axl" text-anchor="end">0.6%</text><line x1="46" y1="260" x2="606" y2="260" class="axis"/><rect class="b20" x="63.7" y="245.4" width="28.0" height="14.6" rx="2"/><rect class="b10" x="93.7" y="258.2" width="28.0" height="1.8" rx="2"/><text x="92.7" y="276" class="axl" text-anchor="middle">2021</text><rect class="b20" x="157.0" y="245.8" width="28.0" height="14.2" rx="2"/><rect class="b10" x="187.0" y="259.8" width="28.0" height="0.2" rx="2"/><text x="186.0" y="276" class="axl" text-anchor="middle">2022</text><rect class="b20" x="250.3" y="248.6" width="28.0" height="11.4" rx="2"/><rect class="b10" x="280.3" y="259.3" width="28.0" height="0.7" rx="2"/><text x="279.3" y="276" class="axl" text-anchor="middle">2023</text><rect class="b20" x="343.7" y="244.5" width="28.0" height="15.5" rx="2"/><rect class="b10" x="373.7" y="259.5" width="28.0" height="0.5" rx="2"/><text x="372.7" y="276" class="axl" text-anchor="middle">2024</text><rect class="b20" x="437.0" y="247.4" width="28.0" height="12.6" rx="2"/><rect class="b10" x="467.0" y="259.3" width="28.0" height="0.7" rx="2"/><text x="466.0" y="276" class="axl" text-anchor="middle">2025</text><rect class="b20-26" x="530.3" y="59.6" width="28.0" height="200.4" rx="2"/><rect class="b10-26" x="560.3" y="133.7" width="28.0" height="126.3" rx="2"/><text x="559.3" y="276" class="axl26" text-anchor="middle">2026</text><text x="544.3" y="55.6" class="vlab26" text-anchor="middle">763</text><text x="574.3" y="129.7" class="vlab26" text-anchor="middle">481</text><text x="46" y="294" class="axt" text-anchor="start">Barra clara = &lt;20 aciertos · barra fuerte = &lt;10 (nº = personas en 2026)</text></svg></div>
+  </div>
+  <p class="note">Fuente: resultados DGAE-UNAM 2021–2026. Solo aspirantes que
+  presentaron examen (aciertos numérico). Análisis descriptivo: muestra
+  corrimientos, no causas. Espejo de <i>Puntajes casi perfectos</i>.</p>
+</div>

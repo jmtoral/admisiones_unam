@@ -604,6 +604,10 @@ Por ello, en el repositorio:
     ordenadas por distancia de Wasserstein. `--top N`, `--png`, `--site`.
   - `casi_perfecto_2026.py` — distribución agregada por año y proporción de
     puntajes altos (≥100 y ≥110).
+  - `casi_cero_2026.py` — el otro extremo: proporción de puntajes ultra-bajos
+    (<20 y <10), casi inexistentes hasta 2026.
+  - `minimo_ingreso.py` — evolución 2021–2026 del puntaje mínimo de ingreso
+    (`aciertos_minimos`); top 50 ofertas por incremento 2025→2026.
 
 ### Sitio (GitHub Pages)
 
