@@ -18,6 +18,7 @@ OUT = ANALYSIS / "output"
 DOCS = ROOT / "docs"
 sys.path.insert(0, str(ANALYSIS))
 
+import base_sin_p75 as m_base             # noqa: E402
 import brecha_2026 as m_brecha            # noqa: E402
 import casi_cero_2026 as m_ccero          # noqa: E402
 import casi_perfecto_2026 as m_cperf       # noqa: E402
@@ -34,6 +35,9 @@ PAGES = [
     dict(slug="comparativa", title="El salto de 2026 por carrera-campus",
          desc="Distribuciones de aciertos: 2021–2025 vs 2026, las 50 ofertas que "
               "más cambiaron.", thumb="comparativa_2026_top15.png"),
+    dict(slug="base-sin-p75", title="Quita el cuartil superior: la base es la misma",
+         desc="Debajo del p75 histórico la distribución de 2026 coincide con 2021–2025; "
+              "el cambio está solo arriba.", thumb="base_sin_p75.png"),
     dict(slug="casi-perfecto", title="Puntajes casi perfectos",
          desc="Proporción con ≥100 y ≥110 aciertos por año: de 0.9% a 5.4% en 2026.",
          thumb="casi_perfecto_2026.png"),
@@ -55,8 +59,10 @@ PAGES = [
 def build_inners() -> dict[str, str]:
     o_c, s_c = m_comp.load()
     o_m, s_m = m_min.load()
+    o_b, gcut_b, fa_b = m_base.load()
     return {
         "comparativa": m_comp.build_inner(o_c, s_c, top_k=50, png=False),
+        "base-sin-p75": m_base.build_inner(o_b, gcut_b, fa_b),
         "casi-perfecto": m_cperf.build_inner(m_cperf.load()),
         "casi-cero": m_ccero.build_inner(m_ccero.load()),
         "brecha": m_brecha.build_inner(m_brecha.load()),
