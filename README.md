@@ -631,6 +631,9 @@ mejoras").
   - `top20_medianas.py` — ridgeline de las 20 carreras con mayor mediana de aciertos.
   - `comparativa_2026.py` — distribuciones por carrera-campus, 2021–2025 vs 2026,
     ordenadas por distancia de Wasserstein. `--top N`, `--png`.
+  - `comparativa_estables.py` — contrapunto de la anterior: las 15 ofertas con
+    **menor** W1 (las que menos cambiaron, casi todas de humanidades); aun ahí la
+    mediana subió. Reusa la maquinaria de `comparativa_2026`.
   - `casi_perfecto_2026.py` — distribución agregada por año y proporción de
     puntajes altos (≥100 y ≥110).
   - `casi_cero_2026.py` — el otro extremo: proporción de puntajes ultra-bajos
@@ -639,6 +642,9 @@ mejoras").
     se comprimió, se ensanchó.
   - `minimo_ingreso.py` — evolución 2021–2026 del puntaje mínimo de ingreso
     (`aciertos_minimos`); top 50 ofertas por incremento 2025→2026.
+  - `base_sin_p75.py` — densidad de la "base" (solo quienes quedaron ≤ el p75
+    histórico de cada oferta): coincide entre años. El cambio de 2026 está solo
+    por encima del corte (25% → 53% lo superó).
 
 ### Sitio (GitHub Pages)
 
