@@ -193,12 +193,28 @@ def build_table(offers: list[dict]) -> str:
 
 
 def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K,
-                png: bool = False) -> str:
-    top = offers[:top_k]
+                png: bool = False, *, panels: list[dict] | None = None,
+                title: str | None = None, method: str | None = None,
+                headline: str | None = None,
+                table_offers: list[dict] | None = None) -> str:
+    top = panels if panels is not None else offers[:top_k]
     facets = "".join(facet_card(o) for o in top)
-    table = build_table(offers)
+    table = build_table(table_offers if table_offers is not None else offers)
     prev = summary["prev_shifts"]
     prev_txt = ", ".join(f"{k.replace('-', '→')}: {v:+.1f}" for k, v in prev.items())
+
+    title = title or "El salto de 2026: aciertos por carrera-campus · UNAM"
+    method = method or (
+        f'<b>Cómo se eligen los paneles:</b> de las {summary["n_offers"]} ofertas '
+        f'comparables (una carrera-campus con ≥{MIN_N} sustentantes en 2025 y 2026), '
+        f'se muestran las <b>{top_k}</b> con mayor distancia de Wasserstein (W1) entre '
+        f'su distribución de aciertos 2026 y 2025 — es decir, las que más cambiaron '
+        f'de un año al otro.')
+    headline = headline or (
+        f'De 2025 a 2026 la mediana de aciertos subió en <b>las {summary["n_offers"]} '
+        f'ofertas comparables — ninguna bajó</b>. El alza media fue de '
+        f'<b>+{summary["shift_2526"]:.1f} puntos</b> de mediana, frente a corrimientos '
+        f'de {prev_txt} en las transiciones previas.')
 
     gl = "".join(f"--y{y}:{GREY_LIGHT[y]};" for y in GREY_LIGHT)
     gd = "".join(f"--y{y}:{GREY_DARK[y]};" for y in GREY_DARK)
@@ -318,21 +334,12 @@ summary {{ cursor:pointer; color:var(--text-secondary); font-size:13px; }}
 
     return f"""{css}
 <div class="viz-root" data-palette="{HL_LIGHT}">
-  <h1>El salto de 2026: aciertos por carrera-campus · UNAM</h1>
+  <h1>{title}</h1>
   <p class="sub">Distribución de aciertos por oferta (carrera + campus). Años
   <b>2021–2025 en tonos sobrios</b>, <b style="color:var(--y2026)">2026 resaltado</b>
   (año del examen en línea).</p>
-  <p class="method"><b>Cómo se eligen los paneles:</b> de las {summary['n_offers']}
-  ofertas comparables (una carrera-campus con ≥{MIN_N} sustentantes en 2025 y 2026),
-  se muestran las <b>{top_k}</b> con mayor distancia de Wasserstein (W1) entre su
-  distribución de aciertos 2026 y 2025 — es decir, las que más cambiaron de un año
-  al otro.</p>
-  <div class="headline">
-    De 2025 a 2026 la mediana de aciertos subió en <b>las {summary['n_offers']}
-    ofertas comparables — ninguna bajó</b>. El alza media fue de
-    <b>+{summary['shift_2526']:.1f} puntos</b> de mediana, frente a corrimientos de
-    {prev_txt} en las transiciones previas.
-  </div>
+  <p class="method">{method}</p>
+  <div class="headline">{headline}</div>
   {legend}
   <div class="grid-f">{facets}</div>
   <details><summary>Ver tabla de las {len(offers)} ofertas (medianas por año)</summary>

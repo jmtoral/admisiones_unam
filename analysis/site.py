@@ -23,6 +23,7 @@ import brecha_2026 as m_brecha            # noqa: E402
 import casi_cero_2026 as m_ccero          # noqa: E402
 import casi_perfecto_2026 as m_cperf       # noqa: E402
 import comparativa_2026 as m_comp          # noqa: E402
+import comparativa_estables as m_estables  # noqa: E402
 import minimo_ingreso as m_min             # noqa: E402
 import top20_medianas as m_top20           # noqa: E402
 
@@ -35,6 +36,9 @@ PAGES = [
     dict(slug="comparativa", title="El salto de 2026 por carrera-campus",
          desc="Distribuciones de aciertos: 2021–2025 vs 2026, las 50 ofertas que "
               "más cambiaron.", thumb="comparativa_2026_top15.png"),
+    dict(slug="estables", title="Las que menos cambiaron",
+         desc="El contrapunto: las 15 carreras-campus más estables (menor W1), casi "
+              "todas de humanidades — y aun así subieron.", thumb="comparativa_estables.png"),
     dict(slug="base-sin-p75", title="Quita el cuartil superior: la base es la misma",
          desc="Debajo del p75 histórico la distribución de 2026 coincide con 2021–2025; "
               "el cambio está solo arriba.", thumb="base_sin_p75.png"),
@@ -62,6 +66,7 @@ def build_inners() -> dict[str, str]:
     o_b, gcut_b, fa_b = m_base.load()
     return {
         "comparativa": m_comp.build_inner(o_c, s_c, top_k=50, png=False),
+        "estables": m_estables.build_inner(o_c, s_c, top_k=15),
         "base-sin-p75": m_base.build_inner(o_b, gcut_b, fa_b),
         "casi-perfecto": m_cperf.build_inner(m_cperf.load()),
         "casi-cero": m_ccero.build_inner(m_ccero.load()),
