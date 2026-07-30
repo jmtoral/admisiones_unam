@@ -589,6 +589,35 @@ Por ello, en el repositorio:
 
 ---
 
+## Trabajo relacionado
+
+Existe una implementación independiente del mismo objetivo, con el dataset ya
+publicado:
+
+> Karen Arlet Castrillo Cruz. (2026). *Resultados UNAM — Datos de admisión a
+> licenciatura (2021–2026)* [Conjunto de datos]. GitHub.
+> https://github.com/agn3si/ResultadosUNAM---data
+
+Su solución de red es **más ligera** que la de este proyecto, y vale la pena
+señalar por qué. En lugar de manejar un navegador real (Playwright + el Chrome del
+sistema, con ventana visible y, en el primer hit, un click humano para pasar el
+reto de Cloudflare), usa **`curl_cffi` con impersonación de Chrome**: esa librería
+replica la **huella TLS/JA3** de un navegador, no solo sus cabeceras. Con eso el
+servidor la trata como Chrome y responde sin exigir ejecutar el reto JavaScript.
+El resto es igual de sobrio: un único script, un delay fijo de ~1.5 s entre
+peticiones y caché en disco — **sin perfil de navegador persistente, sin proceso
+de Chrome abierto y sin interacción manual**. Además, por caber bajo el límite de
+100 MB por archivo de GitHub, pudo versionar el CSV completo (~61 MB) directo en
+el repo, sin Git LFS ni Releases.
+
+Que su enfoque funcione sugiere que el Managed Challenge de este host **puede
+superarse a nivel de huella TLS** (mucho más barato) y no obliga necesariamente a
+un navegador con JavaScript como se asume en "Comportamiento de red". Migrar la
+capa de red a `curl_cffi` sería una simplificación de alto impacto (ver "Posibles
+mejoras").
+
+---
+
 ## Estado
 
 - **Cloudflare**: reto JS confirmado en vivo. `requests` recibe 403; el navegador
@@ -625,3 +654,8 @@ interactivas. Se genera con `python analysis/site.py` (una página por análisis
 - Cachear la metadata del `<h5>` en `scrape` para que `consolidate` no re-parsee
   los 1253 HTML.
 - Fallback headless una vez que el perfil ya tiene `cf_clearance`.
+- **Evaluar `curl_cffi` con impersonación de Chrome** como capa de red principal,
+  en vez de Playwright. Si la huella TLS/JA3 basta para pasar el reto de
+  Cloudflare (como sugiere el trabajo de Castrillo Cruz; ver "Trabajo
+  relacionado"), elimina el navegador real, el perfil persistente y el click
+  humano — una simplificación grande del stack de red.
