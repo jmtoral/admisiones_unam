@@ -138,32 +138,48 @@ def build_table(df: pd.DataFrame) -> str:
         '<th class="sortable" data-key="modalidad">Modalidad<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="presentaron">Presentaron 26<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="pasaron">Pasaron 26<span class="arrow">▾</span></th>'
-        '<th class="sortable sorted desc" data-key="convocados">Convocados<span class="arrow">▾</span></th>'
+        '<th class="sortable sorted desc" data-key="convocados">Personas convocadas<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="pctconvocados">% convocados<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="umbral2026">Umbral 26<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="umbralhist">Umbral histórico<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="aniohist">Año histórico<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="umbralfinal">Umbral final<span class="arrow">▾</span></th>'
-        '<th class="sortable" data-key="anio">Año umbral<span class="arrow">▾</span></th>'
         '</tr>')
     rows = []
     for o in df.itertuples():
         modal = "" if o.modalidad == "escolarizado" else f" · {o.modalidad}"
-        anio_txt = "2026" if o.fuente_umbral == "2026*" else o.fuente_umbral
-        sort_anio = 2026 if o.fuente_umbral in ("2026", "2026*") else int(o.fuente_umbral)
+        es_nueva = pd.isna(o.anio_historico_min)
+        if es_nueva:
+            umbral_hist_txt = anio_hist_txt = "—"
+            umbral_hist_sort = anio_hist_sort = -1
+        else:
+            umbral_hist_txt = f"{o.umbral_historico_min:.0f}"
+            anio_hist_txt = f"{o.anio_historico_min:.0f}"
+            umbral_hist_sort = int(o.umbral_historico_min)
+            anio_hist_sort = int(o.anio_historico_min)
+        pct = o.convocados_examen_control / o.presentaron_2026 * 100 if o.presentaron_2026 else 0.0
+        carrera_lbl = esc(o.carrera.title())
+        if es_nueva:
+            carrera_lbl += ' <span class="tag-nueva">nueva</span>'
         rows.append(
             f'<tr data-carrera="{esc(o.carrera.lower())}" '
             f'data-campus="{esc(o.campus.lower())}" data-modalidad="{esc(o.modalidad)}" '
             f'data-presentaron="{o.presentaron_2026}" data-pasaron="{o.pasaron_2026}" '
             f'data-convocados="{o.convocados_examen_control}" '
-            f'data-umbral2026="{o.umbral_2026}" data-umbralfinal="{o.umbral_final}" '
-            f'data-anio="{sort_anio}">'
-            f'<td class="c">{esc(o.carrera.title())}</td>'
+            f'data-pctconvocados="{pct:.4f}" '
+            f'data-umbral2026="{o.umbral_2026}" data-umbralhist="{umbral_hist_sort}" '
+            f'data-aniohist="{anio_hist_sort}" data-umbralfinal="{o.umbral_final}">'
+            f'<td class="c">{carrera_lbl}</td>'
             f'<td class="c">{esc(o.campus.title())}{esc(modal)}</td>'
             f'<td>{esc(o.modalidad)}</td>'
             f'<td>{o.presentaron_2026:,}</td>'
             f'<td>{o.pasaron_2026:,}</td>'
             f'<td class="hl">{o.convocados_examen_control:,}</td>'
+            f'<td>{pct:.1f}%</td>'
             f'<td>{o.umbral_2026}</td>'
-            f'<td>{o.umbral_final}</td>'
-            f'<td>{anio_txt}</td></tr>')
+            f'<td>{umbral_hist_txt}</td>'
+            f'<td>{anio_hist_txt}</td>'
+            f'<td>{o.umbral_final}</td></tr>')
     return (f'<table class="tbl" id="tblControl"><thead>{head}</thead>'
             f'<tbody>{"".join(rows)}</tbody></table>')
 
@@ -175,7 +191,7 @@ def build_barh(df: pd.DataFrame, top_k: int = TOP_K) -> str:
     for o in top.itertuples():
         modal = "" if o.modalidad == "escolarizado" else f" · {o.modalidad}"
         pct = o.convocados_examen_control / gmax * 100
-        anio_txt = "2026" if o.fuente_umbral == "2026*" else o.fuente_umbral
+        anio_txt = "2026 (nueva, sin historial)" if o.fuente_umbral == "2026*" else o.fuente_umbral
         tip = {
             "carrera": o.carrera.title(), "campus": o.campus.title() + modal,
             "convocados": f"{o.convocados_examen_control:,}",
@@ -218,6 +234,11 @@ def build_inner(df: pd.DataFrame, summary: dict) -> str:
   border-left:3px solid var(--accent); border-radius:8px; padding:10px 12px;
   margin:12px 0; font-size:13.5px; line-height:1.5; }}
 .headline b {{ color:var(--accent); }}
+.disclaimer {{ border:1px dashed var(--border); border-radius:8px; padding:9px 12px;
+  margin:10px 0; font-size:12px; color:var(--muted); line-height:1.5; font-style:italic; }}
+.tag-nueva {{ display:inline-block; font-style:normal; font-size:9.5px; font-weight:600;
+  color:var(--accent); border:1px solid var(--accent); border-radius:4px;
+  padding:0px 4px; margin-left:4px; vertical-align:middle; }}
 .controls {{ display:flex; gap:10px; align-items:center; margin:14px 0 8px; flex-wrap:wrap; }}
 .search {{ flex:1; min-width:200px; padding:7px 11px; border:1px solid var(--border);
   border-radius:7px; background:var(--surface-1); color:var(--text-primary); font-size:13px; }}
@@ -284,7 +305,8 @@ def build_inner(df: pd.DataFrame, summary: dict) -> str:
 
   var sortState={key:'convocados',dir:-1};
   function sortBy(key,dir){
-    var numeric=['presentaron','pasaron','convocados','umbral2026','umbralfinal','anio'];
+    var numeric=['presentaron','pasaron','convocados','pctconvocados','umbral2026',
+      'umbralhist','aniohist','umbralfinal'];
     rows.sort(function(a,b){
       var av=a.dataset[key],bv=b.dataset[key];
       if(numeric.indexOf(key)>-1){ av=+av; bv=+bv; }
@@ -308,7 +330,7 @@ def build_inner(df: pd.DataFrame, summary: dict) -> str:
     f.addEventListener('mousemove',function(e){
       var d=JSON.parse(f.dataset.tip);
       tip.innerHTML='<b>'+d.carrera+'</b><br>'+d.campus+'<br>'
-        +'Convocados: <b>'+d.convocados+'</b><br>Presentaron 2026: '+d.presentaron
+        +'Personas convocadas: <b>'+d.convocados+'</b><br>Presentaron 2026: '+d.presentaron
         +'<br>Umbral final: '+d.umbral;
       tip.style.opacity=1;
       var x=e.clientX+14,y=e.clientY+14;
@@ -332,15 +354,22 @@ def build_inner(df: pd.DataFrame, summary: dict) -> str:
   mín(umbral 2026, umbral histórico más bajo 2021–2025) — matemáticamente
   equivalente a la unión de ambos criterios. Se muestran las
   <b>{summary['n_ofertas']}</b> ofertas con umbral 2026 publicado (todas las de
-  2026, sin filtro de tamaño); {summary['n_sin_hist']} son nuevas y no tienen
-  historial 2021–2025 (se usa solo su umbral 2026, marcado <b>2026*</b>).</p>
+  2026, sin filtro de tamaño), incluidas las <b>{summary['n_sin_hist']} de nueva
+  creación</b> (marcadas <span class="tag-nueva">nueva</span>): no tienen
+  historial 2021–2025, así que sus columnas de umbral y año histórico aparecen
+  vacías ("—") y se usa solo su umbral 2026.</p>
+  <div class="disclaimer">Nota: este análisis es una interpretación propia del
+  criterio descrito por la Comisión Técnica para la Revisión del Proceso de
+  Ingreso a la Licenciatura 2026 de la UNAM. No constituye información oficial
+  de la Comisión ni de la UNAM, y puede diferir del criterio que finalmente se
+  aplique.</div>
   <div class="headline">
     De <b>{summary['total_presentaron']:,}</b> aspirantes que presentaron examen
     en 2026, <b>{summary['total_pasaron']:,}</b> ({summary['pct_pasaron']:.1f}%)
     pasaron con el mínimo de 2026. Bajo el criterio de la Comisión habría que
-    convocar a <b>{summary['total_convocados']:,}</b> ({summary['pct_convocados']:.1f}%)
-    — <b>{summary['total_convocados']-summary['total_pasaron']:,} más</b> que
-    solo "quienes pasaron 2026". En <b>{summary['n_fuente_hist']}</b> de
+    convocar a <b>{summary['total_convocados']:,}</b> personas
+    ({summary['pct_convocados']:.1f}%) — <b>{summary['total_convocados']-summary['total_pasaron']:,}
+    más</b> que solo "quienes pasaron 2026". En <b>{summary['n_fuente_hist']}</b> de
     {summary['n_ofertas']} ofertas el umbral bajó por el histórico: el mínimo de
     2026 fue más exigente que el peor año de 2021–2025.
   </div>
@@ -350,13 +379,14 @@ def build_inner(df: pd.DataFrame, summary: dict) -> str:
     <span id="rowCount" class="count"></span>
   </div>
   <div class="tbl-wrap">{table}</div>
-  <h2>Top {TOP_K} ofertas por número de convocados</h2>
+  <h2>Top {TOP_K} ofertas por número de personas convocadas</h2>
   <div class="barh-wrap">{barh}</div>
   <p class="note">Fuente: resultados y metadata DGAE-UNAM 2021–2026 (campos
   Aciertos y Aciertos Mínimos). Se excluyen registros con estatus "Cancelado"
   (presentaron el examen pero su resultado fue anulado) y los pocos casos sin
-  aciertos capturados en la fuente: no hay umbral que aplicarles. Análisis
-  descriptivo — no identifica aspirantes ni establece causas.</p>
+  aciertos capturados en la fuente: no hay umbral que aplicarles. "% convocados"
+  es respecto al total de presentados de esa oferta. Análisis descriptivo — no
+  identifica aspirantes ni establece causas.</p>
   {js}
 </div>"""
 
