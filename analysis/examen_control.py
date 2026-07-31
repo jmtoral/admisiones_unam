@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import re
 from pathlib import Path
 
 import numpy as np
@@ -46,6 +47,63 @@ HL_LIGHT, HL_DARK = "#e0342a", "#ff5c4f"
 
 def esc(s) -> str:
     return _html.escape(str(s))
+
+
+# La fuente (DGAE) guarda carrera/campus en mayúsculas, y muchas palabras nunca
+# aparecen acentuadas en ningún año (no hay variante acentuada que "adoptar" al
+# canonicalizar). Para esta viz reconstruimos el nombre "bonito": minúsculas en
+# conectores y acentos restaurados por diccionario. Solo afecta la presentación
+# aquí, no los datos ni las demás vizes.
+CONNECTORS = {"y", "e", "o", "u", "de", "del", "la", "las", "los", "en", "a",
+              "al", "con", "por", "para", "sin", "como", "su", "el"}
+ACCENT_FIX = {
+    "actuacion": "actuación", "administracion": "administración",
+    "agricola": "agrícola", "agrogenomicas": "agrogenómicas",
+    "antropologia": "antropología", "artistica": "artística",
+    "bibliotecologia": "bibliotecología", "biologia": "biología",
+    "biologica": "biológica", "biomedica": "biomédica",
+    "bioquimica": "bioquímica", "clasicas": "clásicas",
+    "composicion": "composición", "computacion": "computación",
+    "comunicacion": "comunicación", "contaduria": "contaduría",
+    "diagnostica": "diagnóstica", "dramatica": "dramática",
+    "ecologia": "ecología", "economia": "economía", "educacion": "educación",
+    "electrica": "eléctrica", "electronica": "electrónica",
+    "energias": "energías", "enfermeria": "enfermería",
+    "etnomusicologia": "etnomusicología",
+    "farmaceutico": "farmacéutico", "filosofia": "filosofía",
+    "fisica": "física", "geofisica": "geofísica", "geografia": "geografía",
+    "geologica": "geológica", "geomatica": "geomática", "gestion": "gestión",
+    "grafico": "gráfico", "hispanicas": "hispánicas", "ingles": "inglés",
+    "informacion": "información", "informatica": "informática",
+    "ingenieria": "ingeniería", "investigacion": "investigación",
+    "lingistica": "lingüística", "lingüistica": "lingüística",
+    "matematicas": "matemáticas",
+    "mecanica": "mecánica", "medico": "médico", "metalurgica": "metalúrgica",
+    "musica": "música", "nutriologia": "nutriología",
+    "odontologia": "odontología", "optometria": "optometría",
+    "pedagogia": "pedagogía", "politicas": "políticas", "protesis": "prótesis",
+    "psicologia": "psicología", "publica": "pública", "quimica": "química",
+    "sociologia": "sociología", "tecnologia": "tecnología",
+    "tecnologias": "tecnologías", "traduccion": "traducción",
+    "acatlan": "acatlán", "aragon": "aragón", "cuautitlan": "cuautitlán",
+    "leon": "león", "merida": "mérida",
+}
+_TOKEN_RE = re.compile(r"^(\W*)(\w*)(\W*)$", re.UNICODE)
+
+
+def nice_name(s: str) -> str:
+    out = []
+    for i, tok in enumerate(s.split(" ")):
+        m = _TOKEN_RE.match(tok)
+        if not m:
+            out.append(tok)
+            continue
+        pre, core, suf = m.groups()
+        low = ACCENT_FIX.get(core.lower(), core.lower())
+        if low and (i == 0 or low not in CONNECTORS):
+            low = low[0].upper() + low[1:]
+        out.append(pre + low + suf)
+    return " ".join(out)
 
 
 def load() -> tuple[pd.DataFrame, dict]:
@@ -158,7 +216,7 @@ def build_table(df: pd.DataFrame) -> str:
             umbral_hist_sort = int(o.umbral_historico_min)
             anio_hist_sort = int(o.anio_historico_min)
         pct = o.convocados_examen_control / o.presentaron_2026 * 100 if o.presentaron_2026 else 0.0
-        carrera_lbl = esc(o.carrera.title())
+        carrera_lbl = esc(nice_name(o.carrera))
         if es_nueva:
             carrera_lbl += ' <span class="tag-nueva">nueva</span>'
         rows.append(
@@ -170,7 +228,7 @@ def build_table(df: pd.DataFrame) -> str:
             f'data-umbral2026="{o.umbral_2026}" data-umbralhist="{umbral_hist_sort}" '
             f'data-aniohist="{anio_hist_sort}" data-umbralfinal="{o.umbral_final}">'
             f'<td class="c">{carrera_lbl}</td>'
-            f'<td class="c">{esc(o.campus.title())}{esc(modal)}</td>'
+            f'<td class="c">{esc(nice_name(o.campus))}{esc(modal)}</td>'
             f'<td>{esc(o.modalidad)}</td>'
             f'<td>{o.presentaron_2026:,}</td>'
             f'<td>{o.pasaron_2026:,}</td>'
@@ -193,19 +251,101 @@ def build_barh(df: pd.DataFrame, top_k: int = TOP_K) -> str:
         pct = o.convocados_examen_control / gmax * 100
         anio_txt = "2026 (nueva, sin historial)" if o.fuente_umbral == "2026*" else o.fuente_umbral
         tip = {
-            "carrera": o.carrera.title(), "campus": o.campus.title() + modal,
+            "carrera": nice_name(o.carrera), "campus": nice_name(o.campus) + modal,
             "convocados": f"{o.convocados_examen_control:,}",
             "presentaron": f"{o.presentaron_2026:,}",
             "umbral": f"{o.umbral_final} (umbral 2026: {o.umbral_2026}, de {anio_txt})",
         }
         rows.append(
             f'<div class="barh-row" data-tip=\'{_html.escape(json.dumps(tip))}\'>'
-            f'<span class="barh-label">{esc(o.carrera.title())}'
-            f'<i>{esc(o.campus.title())}{esc(modal)}</i></span>'
+            f'<span class="barh-label">{esc(nice_name(o.carrera))}'
+            f'<i>{esc(nice_name(o.campus))}{esc(modal)}</i></span>'
             f'<span class="barh-track"><span class="barh-fill" '
             f'style="width:{pct:.1f}%"></span></span>'
             f'<span class="barh-val">{o.convocados_examen_control:,}</span></div>')
     return "".join(rows)
+
+
+def build_over80(df: pd.DataFrame, pct_min: float = 80.0) -> str:
+    """PNG aparte: ofertas donde el % de convocados (respecto a presentados)
+    supera pct_min. Sin JS (es para exportar a imagen estática): las
+    fracciones van directo en la etiqueta, no en un tooltip."""
+    d = df.copy()
+    d["pct"] = d["convocados_examen_control"] / d["presentaron_2026"] * 100
+    sub = d[d["pct"] > pct_min].sort_values("pct", ascending=False).reset_index(drop=True)
+
+    rows = []
+    for o in sub.itertuples():
+        modal = "" if o.modalidad == "escolarizado" else f" · {o.modalidad}"
+        rows.append(
+            f'<div class="barh-row">'
+            f'<span class="barh-label">{esc(nice_name(o.carrera))}'
+            f'<i>{esc(nice_name(o.campus))}{esc(modal)}</i></span>'
+            f'<span class="barh-track"><span class="barh-fill" '
+            f'style="width:{o.pct:.1f}%"></span></span>'
+            f'<span class="barh-val">{o.pct:.1f}%'
+            f'<i>{o.convocados_examen_control:,}/{o.presentaron_2026:,}</i></span></div>')
+
+    css = f"""
+<style>
+.viz-root {{ color-scheme:light; --surface-1:#fcfcfb; --plane:#f9f9f7;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --border:rgba(11,11,11,.10); --accent:{HL_LIGHT};
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:var(--plane); color:var(--text-primary); padding:24px; max-width:900px; margin:0 auto; }}
+@media (prefers-color-scheme:dark) {{ :root:where(:not([data-theme="light"])) .viz-root {{
+  color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d; --text-primary:#fff;
+  --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
+  --border:rgba(255,255,255,.10); --accent:{HL_DARK}; }} }}
+:root[data-theme="dark"] .viz-root {{ color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d;
+  --text-primary:#fff; --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
+  --border:rgba(255,255,255,.10); --accent:{HL_DARK}; }}
+.viz-root h1 {{ font-size:19px; margin:0 0 4px; text-wrap:balance; }}
+.sub {{ color:var(--text-secondary); font-size:13px; margin:0 0 3px; line-height:1.5; }}
+.disclaimer {{ border:1px dashed var(--border); border-radius:8px; padding:9px 12px;
+  margin:10px 0; font-size:12px; color:var(--muted); line-height:1.5; font-style:italic; }}
+.headline {{ background:var(--surface-1); border:1px solid var(--border);
+  border-left:3px solid var(--accent); border-radius:8px; padding:10px 12px;
+  margin:12px 0; font-size:13.5px; line-height:1.5; }}
+.headline b {{ color:var(--accent); }}
+.barh-wrap {{ margin-top:10px; }}
+.barh-row {{ display:grid; grid-template-columns:230px 1fr 92px; align-items:center;
+  gap:10px; padding:4px 0; }}
+.barh-label {{ font-size:11.5px; color:var(--text-primary); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; }}
+.barh-label i {{ display:block; font-style:normal; font-size:10px; color:var(--muted);
+  overflow:hidden; text-overflow:ellipsis; }}
+.barh-track {{ position:relative; height:14px; background:var(--grid); border-radius:4px; }}
+.barh-fill {{ position:absolute; left:0; top:0; bottom:0; background:var(--accent);
+  border-radius:0 4px 4px 0; }}
+.barh-val {{ font-size:11.5px; color:var(--text-secondary); text-align:right;
+  font-variant-numeric:tabular-nums; }}
+.barh-val i {{ display:block; font-style:normal; font-size:9.5px; color:var(--muted); }}
+.note {{ color:var(--muted); font-size:12px; margin:14px 0 0; line-height:1.5; }}
+</style>"""
+
+    return f"""{css}
+<div class="viz-root" data-palette="{HL_LIGHT}">
+  <h1>Ofertas donde más del {pct_min:.0f}% de los presentados serían convocados · UNAM</h1>
+  <p class="sub">Del total de {len(df)} ofertas de 2026, estas <b>{len(sub)}</b>
+  tienen el porcentaje más alto de "% convocados" (personas convocadas al examen
+  de control entre quienes presentaron examen en esa oferta en 2026).</p>
+  <div class="disclaimer">Nota: este análisis es una interpretación propia del
+  criterio descrito por la Comisión Técnica para la Revisión del Proceso de
+  Ingreso a la Licenciatura 2026 de la UNAM. No constituye información oficial
+  de la Comisión ni de la UNAM, y puede diferir del criterio que finalmente se
+  aplique.</div>
+  <div class="headline">
+    En estas <b>{len(sub)}</b> ofertas, <b>{pct_min:.0f}%</b> o más de quienes
+    presentaron examen en 2026 caerían dentro del grupo a convocar — casi todas
+    son ofertas chicas (pocos presentados), donde un puñado de casos mueve el
+    porcentaje con facilidad.
+  </div>
+  <div class="barh-wrap">{"".join(rows)}</div>
+  <p class="note">Fuente: resultados y metadata DGAE-UNAM 2021–2026. "% convocados"
+  = convocados al examen de control ÷ presentaron examen 2026, por oferta.
+  Análisis descriptivo — no identifica aspirantes ni establece causas.</p>
+</div>"""
 
 
 def build_inner(df: pd.DataFrame, summary: dict) -> str:
@@ -416,6 +556,12 @@ def main() -> None:
     (OUT_DIR / "examen_control.html").write_text(inner, encoding="utf-8")
     (OUT_DIR / "_examen_control_preview.html").write_text(
         _standalone(inner), encoding="utf-8")
+
+    over80 = build_over80(df, pct_min=80.0)
+    (OUT_DIR / "_examen_control_over80_preview.html").write_text(
+        _standalone(over80), encoding="utf-8")
+    n_over80 = int((df["convocados_examen_control"] / df["presentaron_2026"] * 100 > 80).sum())
+    print(f"Ofertas con % convocados > 80%: {n_over80}")
     print("HTML generado en", OUT_DIR)
 
 
