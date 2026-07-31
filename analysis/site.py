@@ -24,6 +24,7 @@ import casi_cero_2026 as m_ccero          # noqa: E402
 import casi_perfecto_2026 as m_cperf       # noqa: E402
 import comparativa_2026 as m_comp          # noqa: E402
 import comparativa_estables as m_estables  # noqa: E402
+import examen_control as m_examen          # noqa: E402
 import minimo_ingreso as m_min             # noqa: E402
 import top20_medianas as m_top20           # noqa: E402
 
@@ -57,6 +58,10 @@ PAGES = [
     dict(slug="top20", title="Las 20 carreras con mayor mediana",
          desc="Ridgeline de la distribución de aciertos (2026).",
          thumb="top20_aciertos_2026.png"),
+    dict(slug="examen-control", title="Examen de control: ¿a quién convocar?",
+         desc="Por carrera-campus (todas, sin filtro de tamaño): a cuántos aspirantes "
+              "de 2026 convocar según el criterio de la Comisión Técnica.",
+         thumb="examen_control.png"),
 ]
 
 
@@ -73,6 +78,7 @@ def build_inners() -> dict[str, str]:
         "brecha": m_brecha.build_inner(m_brecha.load()),
         "minimo": m_min.build_inner(o_m, s_m),
         "top20": m_top20.build_inner(m_top20.load_top()),
+        "examen-control": m_examen.build_inner(*m_examen.load()),
     }
 
 
