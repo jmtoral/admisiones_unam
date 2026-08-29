@@ -18,6 +18,7 @@ Salidas en analysis/output/: minimo_ingreso_control.html/.png/_dark.png + .csv
 from __future__ import annotations
 
 import html as _html
+import json
 import sys
 from pathlib import Path
 
@@ -167,17 +168,35 @@ def card(o):
     mod = "" if o["modalidad"] == "escolarizado" else f' · {o["modalidad"]}'
     ctrl_val = o["by"].get("control")
     ctrl_txt = f' → {ctrl_val:.0f}' if ctrl_val is not None else ""
+
+    sel26 = o["sel"].get(2026)
+    selc = o["sel"].get("control")
+    if sel26 and selc is not None:
+        pct = selc / sel26 * 100
+        pct_txt = f'control: <b class="c">{pct:.0f}%</b> de los admitidos 2026 ({selc:.0f} de {sel26:.0f})'
+    else:
+        pct_txt = "sin admitidos suficientes para comparar"
+
+    tip = {
+        "carrera": o["carrera"].title(), "campus": o["campus"].title() + mod,
+        "admitidos": {(str(p) if isinstance(p, int) else "Control"): f'{o["sel"].get(p, 0):.0f}'
+                      for p in POS if p in o["by"]},
+    }
+
     return (
-        f'<figure class="facet">'
+        f'<figure class="facet" data-tip=\'{_html.escape(json.dumps(tip))}\'>'
         f'<figcaption><span class="ca">{esc(o["carrera"].title())}</span>'
         f'<span class="cc">{esc(o["campus"].title())}{esc(mod)}</span></figcaption>'
         f'<div class="badge">mín {o["by"][2025]:.0f} → {o["by"][2026]:.0f}'
         f'<b class="c">{esc(ctrl_txt)}</b> <b>(+{o["inc"]:.0f})</b></div>'
+        f'<div class="badge2">{pct_txt}</div>'
         f'{spark(o)}</figure>')
 
 
 def build_inner(offers, summary):
-    top = offers[:TOP_K]
+    # Selección: top TOP_K por incremento 2025->2026 (igual que antes).
+    # Orden de despliegue: del mínimo 2026 más alto al más bajo.
+    top = sorted(offers[:TOP_K], key=lambda o: -o["by"][2026])
     facets = "".join(card(o) for o in top)
     prev_txt = ", ".join(f"{k.replace('-', '→')}: {v:+.1f}"
                          for k, v in summary["prev"].items())
@@ -226,6 +245,15 @@ def build_inner(offers, summary):
 .facet .cc {{ font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
 .facet .badge {{ font-size:10.5px; color:var(--text-secondary); font-variant-numeric:tabular-nums; margin:2px 0 1px; }}
 .facet .badge b {{ color:var(--y2026); }} .facet .badge b.c {{ color:var(--ctrl); }}
+.facet .badge2 {{ font-size:9.5px; color:var(--muted); font-variant-numeric:tabular-nums; margin:0 0 3px; }}
+.facet .badge2 b.c {{ color:var(--ctrl); }}
+.tip {{ position:fixed; pointer-events:none; z-index:9; background:var(--surface-1);
+  color:var(--text-primary); border:1px solid var(--border); border-radius:8px;
+  padding:8px 10px; font-size:11.5px; box-shadow:0 4px 14px rgba(0,0,0,.18);
+  opacity:0; transition:opacity .1s; }}
+.tip table {{ border-collapse:collapse; }} .tip td {{ padding:1px 6px; }}
+.tip .yl {{ color:var(--text-secondary); }} .tip .hc {{ color:var(--ctrl); font-weight:600; }}
+.tip .h26 {{ color:var(--y2026); font-weight:600; }}
 .ln {{ fill:none; stroke:var(--line); stroke-width:1.5; }}
 .ln26 {{ stroke:var(--y2026); stroke-width:2.4; }}
 .lnctrl {{ stroke:var(--ctrl); stroke-width:2.4; }}
@@ -243,6 +271,29 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
 @media (max-width:560px) {{ .grid-f {{ grid-template-columns:repeat(2,minmax(0,1fr)); }} }}
 </style>"""
 
+    js = """
+<script>
+(function(){
+  var root=document.querySelector('.viz-root');
+  var tip=document.createElement('div'); tip.className='tip'; root.appendChild(tip);
+  root.querySelectorAll('.facet').forEach(function(f){
+    f.addEventListener('mousemove',function(e){
+      var d=JSON.parse(f.dataset.tip);
+      var rows='<tr><td colspan=2><b>'+d.carrera+'</b><br>'+d.campus+'</td></tr>'
+        +'<tr><td colspan=2 class=yl>admitidos por fase:</td></tr>';
+      Object.keys(d.admitidos).forEach(function(k){
+        var cls=k==='Control'?' class=hc':(k==='2026'?' class=h26':' class=yl');
+        rows+='<tr'+cls+'><td'+cls+'>'+k+'</td><td'+cls+'>'+d.admitidos[k]+'</td></tr>';
+      });
+      tip.innerHTML='<table>'+rows+'</table>'; tip.style.opacity=1;
+      var x=e.clientX+14,y=e.clientY+14;
+      if(x+200>innerWidth)x=e.clientX-210; tip.style.left=x+'px'; tip.style.top=y+'px';
+    });
+    f.addEventListener('mouseleave',function(){tip.style.opacity=0;});
+  });
+})();
+</script>"""
+
     return f"""{css}
 <div class="viz-root" data-palette="{HL_LIGHT},{CTRL_LIGHT}">
   <h1>Puntaje mínimo de ingreso: 2021–2026 + Control · UNAM</h1>
@@ -251,11 +302,12 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
   Cada mini-gráfica es la trayectoria del mínimo, extendida con el
   <b style="color:var(--ctrl)">examen de control presencial</b> como una
   posición más después de 2026. El tamaño de cada punto es el <b>número de
-  admitidos</b> en esa fase (no un tamaño fijo).</p>
+  admitidos</b> en esa fase (no un tamaño fijo); pasa el mouse sobre un panel
+  para ver el número exacto en cada una.</p>
   <p class="method"><b>Cómo se eligen:</b> las <b>{TOP_K}</b> ofertas con mayor
   incremento del puntaje mínimo de 2025 a 2026, restringidas a las que
   también tienen dato de control (para que la línea tenga con qué
-  continuar).</p>
+  continuar); se muestran ordenadas de mayor a menor mínimo 2026.</p>
   <div class="headline">
     El puntaje mínimo subió en <b>{summary['up']} de {summary['n']}</b> ofertas
     comparables de 2025 a 2026 (bajó en {summary['down']}). El alza media fue de
@@ -269,7 +321,8 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
     <b style="color:var(--y2026)">2026</b></span>
     <span><i style="border-color:var(--ctrl);border-top-width:3px"></i>
     <b style="color:var(--ctrl)">Control</b></span>
-    <span style="margin-left:auto">eje Y y tamaño de punto: escala propia de cada panel</span>
+    <span style="margin-left:auto">eje Y y tamaño de punto: escala propia de cada panel ·
+    pasa el mouse para ver admitidos</span>
   </div>
   <div class="grid-f">{facets}</div>
   <details><summary>Ver tabla (mínimo por año + control, {len(top)} ofertas)</summary>
@@ -280,6 +333,7 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
   tamaño de los puntos de cada panel se escalan a su propio rango (destacan
   la forma, no comparan niveles absolutos entre paneles; ver la tabla para
   los valores). Análisis descriptivo.</p>
+  {js}
 </div>"""
 
 
