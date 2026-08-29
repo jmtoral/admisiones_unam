@@ -63,9 +63,9 @@ PAGES = [
          desc="Por carrera-campus (todas, sin filtro de tamaño): a cuántos aspirantes "
               "de 2026 convocar según el criterio de la Comisión Técnica.",
          thumb="examen_control.png"),
-    dict(slug="control-resultados", title="2026 en línea vs. Control: ¿corrigió?",
-         desc="Ya con resultados del examen de control presencial: corrección mediana "
-              "de 59%, pero muy despareja — Médico Cirujano-CU solo 17%.",
+    dict(slug="control-resultados", title="2026 en línea vs. Control",
+         desc="Ya con resultados del examen de control presencial: medianas por "
+              "carrera-campus, comparadas contra 2026 y contra 2021-2025.",
          thumb="examen_control_resultados.png"),
 ]
 

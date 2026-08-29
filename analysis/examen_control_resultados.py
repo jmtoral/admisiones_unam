@@ -186,21 +186,24 @@ def build_table(offers: list[dict]) -> str:
         '<th class="sortable" data-key="medonline">Mediana en línea<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="medcontrol">Mediana control<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="medhist">Mediana histórica<span class="arrow">▾</span></th>'
-        '<th class="sortable" data-key="frac">% corrección<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="diff">Control − histórica<span class="arrow">▾</span></th>'
         '</tr>')
     rows = []
     for o in offers:
         modal = "" if o["modalidad"] == "escolarizado" else f" · {o['modalidad']}"
         hist_txt = f"{o['med_hist']:.0f}" if not np.isnan(o["med_hist"]) else "—"
         hist_sort = o["med_hist"] if not np.isnan(o["med_hist"]) else -1
-        frac_txt = f"{o['frac_correccion']*100:.0f}%" if not np.isnan(o["frac_correccion"]) else "—"
-        frac_sort = o["frac_correccion"] if not np.isnan(o["frac_correccion"]) else -1
+        if np.isnan(o["med_hist"]):
+            diff_txt, diff_sort = "—", -999
+        else:
+            d = o["med_control"] - o["med_hist"]
+            diff_txt, diff_sort = f"{d:+.0f}", d
         rows.append(
             f'<tr data-carrera="{esc(o["carrera"].lower())}" '
             f'data-campus="{esc(o["campus"].lower())}" data-modalidad="{esc(o["modalidad"])}" '
             f'data-ncontrol="{o["n_control"]}" data-nonline="{o["n_online"]}" '
             f'data-medonline="{o["med_online"]}" data-medcontrol="{o["med_control"]}" '
-            f'data-medhist="{hist_sort}" data-frac="{frac_sort}">'
+            f'data-medhist="{hist_sort}" data-diff="{diff_sort}">'
             f'<td class="c">{esc(nice_name(o["carrera"]))}</td>'
             f'<td class="c">{esc(nice_name(o["campus"]))}{esc(modal)}</td>'
             f'<td>{esc(o["modalidad"])}</td>'
@@ -209,7 +212,7 @@ def build_table(offers: list[dict]) -> str:
             f'<td>{o["med_online"]:.0f}</td>'
             f'<td class="hlb">{o["med_control"]:.0f}</td>'
             f'<td>{hist_txt}</td>'
-            f'<td>{frac_txt}</td></tr>')
+            f'<td>{diff_txt}</td></tr>')
     return (f'<table class="tbl" id="tblResultados"><thead>{head}</thead>'
             f'<tbody>{"".join(rows)}</tbody></table>')
 
@@ -245,12 +248,12 @@ def facet_svg(o: dict) -> str:
 
 def facet(o: dict) -> str:
     modal = "" if o["modalidad"] == "escolarizado" else f" · {o['modalidad']}"
-    frac_txt = f"{o['frac_correccion']*100:.0f}% corregido" if not np.isnan(o["frac_correccion"]) else "sin histórico"
+    hist_txt = f"{o['med_hist']:.0f}" if not np.isnan(o["med_hist"]) else "—"
     return (f'<figure class="facet">'
             f'<figcaption><span class="ca">{esc(nice_name(o["carrera"]))}</span>'
             f'<span class="cc">{esc(nice_name(o["campus"]))}{esc(modal)}</span></figcaption>'
-            f'<div class="badge">med. {o["med_online"]:.0f}→{o["med_control"]:.0f} '
-            f'<b>({frac_txt})</b></div>'
+            f'<div class="badge">mediana: en línea <b class="on">{o["med_online"]:.0f}</b> · '
+            f'control <b class="ct">{o["med_control"]:.0f}</b> · histórica {hist_txt}</div>'
             f'{facet_svg(o)}</figure>')
 
 
@@ -310,10 +313,11 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K) -> str:
 .grid-f {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:8px; }}
 .facet {{ background:var(--surface-1); border:1px solid var(--border); border-radius:10px; padding:8px 8px 2px; }}
 .facet figcaption {{ display:flex; flex-direction:column; line-height:1.25; }}
-.facet .ca {{ font-size:12px; font-weight:600; }}
-.facet .cc {{ font-size:10.5px; color:var(--muted); }}
+.facet .ca {{ font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.facet .cc {{ font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
 .facet .badge {{ font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; margin:2px 0 0; }}
-.facet .badge b {{ color:var(--control); }}
+.facet .badge b.on {{ color:var(--online); }}
+.facet .badge b.ct {{ color:var(--control); }}
 .axis {{ stroke:var(--axis); stroke-width:1; }}
 .tickl {{ fill:var(--muted); font-size:9.5px; font-variant-numeric:tabular-nums; }}
 .yr {{ fill:none; stroke-width:1.6; }}
@@ -351,7 +355,7 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K) -> str:
 
   var sortState={key:'ncontrol',dir:-1};
   function sortBy(key,dir){
-    var numeric=['ncontrol','nonline','medonline','medcontrol','medhist','frac'];
+    var numeric=['ncontrol','nonline','medonline','medcontrol','medhist','diff'];
     rows.sort(function(a,b){
       var av=a.dataset[key],bv=b.dataset[key];
       if(numeric.indexOf(key)>-1){ av=+av; bv=+bv; }
@@ -380,9 +384,15 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K) -> str:
         '<span><i style="border-color:var(--control);border-top-width:3px"></i>'
         '<b style="color:var(--control)">Control (presencial)</b></span></div>')
 
+    # Ejemplos robustos para el headline: solo ofertas con muestra grande en
+    # control (evita que un caso de ~100 aspirantes domine el titular).
+    con_hist = [o for o in offers if not np.isnan(o["med_hist"]) and o["n_control"] >= 300]
+    o_min = min(con_hist, key=lambda o: o["frac_correccion"])
+    o_max = max(con_hist, key=lambda o: o["frac_correccion"])
+
     return f"""{css}
 <div class="viz-root" data-palette="{HL_LIGHT},{CTRL_LIGHT}">
-  <h1>2026 en línea vs. Control presencial: ¿corrigió la anomalía? · UNAM</h1>
+  <h1>2026 en línea vs. Control presencial: medianas por carrera-campus · UNAM</h1>
   <p class="sub">Ahora que el examen de control presencial tiene resultados
   publicados, comparamos su distribución de aciertos contra el <b>examen en
   línea de 2026</b> (ya anómalo) y contra <b>2021–2025</b> (la normalidad de
@@ -390,23 +400,25 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K) -> str:
   <p class="method"><b>Método:</b> de las {summary['n_ofertas_control']} ofertas
   con examen de control, {summary['n_ofertas_comparables']} tienen ≥{MIN_N}
   presentados en línea y en control (comparables); {summary['n_con_historico']}
-  de ellas también tienen historial 2021–2025 suficiente. "% corrección" =
-  cuánto de la distancia (2026 en línea − histórico) se recuperó en el
-  control: 100% = el control igualó la mediana histórica; 0% = el control no
-  se movió del nivel de 2026.</p>
+  de ellas también tienen historial 2021–2025 suficiente. La tabla y los
+  paneles muestran, para cada una, la mediana de aciertos en línea, en
+  control y histórica.</p>
   <div class="disclaimer">Nota: este análisis es una interpretación propia,
   no información oficial de la UNAM ni de la Comisión Técnica. Es
   descriptivo — no identifica aspirantes ni establece causas.</div>
   <div class="headline">
     En las {summary['n_con_historico']} ofertas comparables, la mediana de
     2026 en línea estaba <b>+{summary['d_online_hist']:.0f} puntos</b> sobre
-    el histórico; en el control quedó a <b class="c">+{summary['d_control_hist']:.0f}
-    puntos</b> — se corrigió una <b>mediana de {summary['frac_mediana']*100:.0f}%</b>
-    de la distancia. Pero el patrón es desigual:
-    <b>{summary['n_frac_alta']}</b> ofertas corrigieron ≥60%,
-    <b>{summary['n_frac_media']}</b> corrigieron parcialmente (20–60%), y
-    <b>{summary['n_frac_baja']}</b> corrigieron menos del 20% — el control
-    ahí quedó casi tan alto como el examen en línea.
+    la mediana histórica; la del control quedó en
+    <b class="c">+{summary['d_control_hist']:.0f} puntos</b> sobre la
+    histórica. Varía mucho por oferta: en
+    {esc(nice_name(o_max["carrera"]))}-{esc(nice_name(o_max["campus"]))} las
+    tres medianas fueron {o_max['med_online']:.0f} (en línea),
+    <b class="c">{o_max['med_control']:.0f}</b> (control) y
+    {o_max['med_hist']:.0f} (histórica); en
+    {esc(nice_name(o_min["carrera"]))}-{esc(nice_name(o_min["campus"]))} fueron
+    {o_min['med_online']:.0f} (en línea), <b class="c">{o_min['med_control']:.0f}</b>
+    (control) y {o_min['med_hist']:.0f} (histórica).
   </div>
   {legend}
   <div class="controls">

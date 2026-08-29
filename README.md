@@ -690,11 +690,12 @@ mejoras").
     según el criterio de la Comisión Técnica (mín. de 2026 o el histórico más
     bajo 2021-2025); las 220 ofertas, sin filtro de tamaño.
   - `examen_control_resultados.py` — con los resultados YA publicados del
-    examen de control (`src/scrape_control.py`): compara su distribución
-    contra 2026-en-línea y contra 2021-2025. Corrección mediana del 59% de
-    la distancia a lo histórico, pero muy despareja entre ofertas (17%-100%);
+    examen de control (`src/scrape_control.py`): compara, por
+    carrera-campus, la mediana de aciertos en línea (2026), en control y
+    la histórica (2021-2025). La mediana en línea estaba +15 puntos sobre
+    la histórica; la del control, +6 — pero varía mucho entre ofertas.
     Médico Cirujano-Facultad de Medicina, la carrera insignia del resto de
-    este análisis, es de las que menos corrigió (17%).
+    este análisis, quedó de las más alejadas de su histórica (81→77 vs. 57).
 
 ### Sitio (GitHub Pages)
 
