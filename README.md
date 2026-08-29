@@ -624,10 +624,9 @@ Por ello, en el repositorio:
   por carrera-campus-año).
 - No se versiona el maestro por aspirante (`resultados_todos.csv`); se mantiene
   local y se regenera con el pipeline (además supera el límite de GitHub).
-- Mismo criterio para el examen de control: se versiona `metadata_control_2026.csv`
-  (agregado) y `manifest_control_2026.csv` (índice), no
-  `resultados_control_2026.csv` (nivel aspirante) — aunque su tamaño sí cabría en
-  GitHub, la razón de privacidad aplica igual.
+- El examen de control es la excepción: `resultados_control_2026.csv` (nivel
+  aspirante, ~5.6 MB) SÍ se versiona, por decisión explícita — cabe cómodo
+  bajo el límite de 100 MB de GitHub, a diferencia de `resultados_todos.csv`.
 
 ---
 

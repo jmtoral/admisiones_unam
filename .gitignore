@@ -8,9 +8,6 @@ data/tables/
 # Maestro por aspirante (~90+ MB, supera el límite de 100 MB de GitHub).
 # Se regenera con: python -m src.consolidate. Ver README para publicarlo aparte.
 data/consolidated/resultados_todos.csv
-# Examen de control: mismo criterio de privacidad (nivel aspirante), aunque
-# su tamaño sí cabría en GitHub. Se regenera con: python -m src.scrape_control.
-data/consolidated/resultados_control_2026.csv
 # Perfil persistente del navegador (cookies de Cloudflare; no versionar).
 data/.browser_profile/
 
