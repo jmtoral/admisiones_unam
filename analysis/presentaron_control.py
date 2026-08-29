@@ -1,0 +1,433 @@
+"""¿Dónde se presentó menos gente al examen de control? · 2026 vs Control.
+
+Compara, por carrera-campus, cuántos aspirantes PRESENTARON el examen en
+2026 (en línea) contra cuántos presentaron el examen de control presencial
+(`src/scrape_control.py`). No es lo mismo que "personas admitidas": aquí
+se mide participación (quién se apareció a hacer el examen), no resultado.
+
+Unidad = carrera + campus + modalidad. Se requieren ≥MIN_N presentados en
+2026 (evita que ofertas minúsculas con 1-2 aspirantes generen porcentajes
+ruidosos). Análisis descriptivo.
+
+Uso:  python analysis/presentaron_control.py
+Salidas en analysis/output/: presentaron_control.html/.png/_dark.png + .csv
+"""
+
+from __future__ import annotations
+
+import html as _html
+import json
+import sys
+from pathlib import Path
+
+import numpy as np
+import pandas as pd
+
+ROOT = Path(__file__).resolve().parent.parent
+ANALYSIS_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(ROOT))
+sys.path.insert(0, str(ANALYSIS_DIR))
+from examen_control_resultados import _canonicalize_control  # noqa: E402
+from examen_control import ACCENT_FIX, CONNECTORS  # noqa: E402
+
+SRC = ROOT / "data" / "consolidated" / "metadata_carreras.csv"
+SRC_CONTROL = ROOT / "data" / "consolidated" / "metadata_control_2026.csv"
+OUT_DIR = ROOT / "analysis" / "output"
+
+MIN_N = 10
+TOP_K = 20
+CTRL_LIGHT, CTRL_DARK = "#2f6fb0", "#6fa8dc"
+MUTED_LIGHT, MUTED_DARK = "#898781", "#898781"
+
+import re  # noqa: E402
+_TOKEN_RE = re.compile(r"^(\W*)(\w*)(\W*)$", re.UNICODE)
+
+
+def esc(s) -> str:
+    return _html.escape(str(s))
+
+
+def nice_name(s: str) -> str:
+    out = []
+    for i, tok in enumerate(str(s).split(" ")):
+        m = _TOKEN_RE.match(tok)
+        if not m:
+            out.append(tok)
+            continue
+        pre, core, suf = m.groups()
+        low = ACCENT_FIX.get(core.lower(), core.lower())
+        if low and (i == 0 or low not in CONNECTORS):
+            low = low[0].upper() + low[1:]
+        out.append(pre + low + suf)
+    return " ".join(out)
+
+
+def load():
+    m = pd.read_csv(SRC, dtype=str, keep_default_na=False, na_filter=False)
+    m["pres"] = pd.to_numeric(m["presentaron_examen"], errors="coerce")
+    m["year"] = m["year"].astype(int)
+    m26 = m[(m["year"] == 2026) & m["pres"].notna()]
+
+    mc = pd.read_csv(SRC_CONTROL, dtype=str, keep_default_na=False, na_filter=False)
+    mc["pres"] = pd.to_numeric(mc["presentaron_examen"], errors="coerce")
+    mc = _canonicalize_control(mc)
+    mc = mc[mc["pres"].notna()]
+    ctrl_by_key = {(r["carrera"], r["campus"], r["modalidad"]): r["pres"]
+                   for _, r in mc.iterrows()}
+
+    offers = []
+    for _, row in m26.iterrows():
+        key = (row["carrera"], row["campus"], row["modalidad"])
+        pres26 = row["pres"]
+        presc = ctrl_by_key.get(key)
+        if presc is None or pres26 < MIN_N:
+            continue
+        pct = presc / pres26 * 100 if pres26 else 0.0
+        offers.append({
+            "carrera": row["carrera"], "campus": row["campus"], "modalidad": row["modalidad"],
+            "pres26": float(pres26), "presc": float(presc), "pct": pct,
+        })
+    offers.sort(key=lambda o: o["pct"])
+
+    total26 = sum(o["pres26"] for o in offers)
+    totalc = sum(o["presc"] for o in offers)
+    pcts = np.array([o["pct"] for o in offers])
+    summary = {
+        "n": len(offers),
+        "total26": int(total26),
+        "totalc": int(totalc),
+        "overall_pct": totalc / total26 * 100 if total26 else 0.0,
+        "median_pct": float(np.median(pcts)) if pcts.size else 0.0,
+        "n_bajo": int((pcts < 20).sum()),
+        "n_medio": int(((pcts >= 20) & (pcts < 50)).sum()),
+        "n_alto": int((pcts >= 50).sum()),
+    }
+    return offers, summary
+
+
+# --------------------------------------------------------------------------- #
+# Scatter (log-log): presentaron 2026 vs presentaron control
+# --------------------------------------------------------------------------- #
+SW, SH = 620, 430
+SML, SMR, SMT, SMB = 54, 16, 16, 44
+
+
+def _log_scale(vmin, vmax, pmin, pmax):
+    lo, hi = np.log10(vmin), np.log10(vmax)
+
+    def f(v):
+        return pmin + (np.log10(max(v, vmin)) - lo) / (hi - lo) * (pmax - pmin)
+    return f
+
+
+def build_scatter(offers: list[dict]) -> str:
+    xs = [o["pres26"] for o in offers]
+    ys = [o["presc"] for o in offers]
+    xmin, xmax = 10 ** np.floor(np.log10(min(xs))), 10 ** np.ceil(np.log10(max(xs)))
+    ymin, ymax = 10 ** np.floor(np.log10(max(min(ys), 1))), 10 ** np.ceil(np.log10(max(ys)))
+
+    fx = _log_scale(xmin, xmax, SML, SW - SMR)
+    fy = _log_scale(ymin, ymax, SH - SMB, SMT)
+
+    def ticks(vmin, vmax):
+        t = []
+        v = vmin
+        while v <= vmax * 1.0001:
+            t.append(v)
+            v *= 10
+        return t
+
+    p = [f'<svg viewBox="0 0 {SW} {SH}" width="100%" preserveAspectRatio="xMidYMid meet" id="scatterSvg">']
+    for t in ticks(xmin, xmax):
+        x = fx(t)
+        p.append(f'<line x1="{x:.1f}" y1="{SMT}" x2="{x:.1f}" y2="{SH-SMB}" class="gridl"/>')
+        p.append(f'<text x="{x:.1f}" y="{SH-SMB+16}" class="axl" text-anchor="middle">{t:,.0f}</text>')
+    for t in ticks(ymin, ymax):
+        y = fy(t)
+        p.append(f'<line x1="{SML}" y1="{y:.1f}" x2="{SW-SMR}" y2="{y:.1f}" class="gridl"/>')
+        p.append(f'<text x="{SML-8}" y="{y+3:.1f}" class="axl" text-anchor="end">{t:,.0f}</text>')
+    # referencia y=x (100% de retención): recorta la recta al rectángulo visible
+    t0, t1 = max(xmin, ymin), min(xmax, ymax)
+    if t0 < t1:
+        x0, y0 = fx(t0), fy(t0)
+        x1, y1 = fx(t1), fy(t1)
+        p.append(f'<line x1="{x0:.1f}" y1="{y0:.1f}" x2="{x1:.1f}" y2="{y1:.1f}" class="refline"/>')
+        p.append(f'<text x="{x1-6:.1f}" y="{y1-6:.1f}" class="axl reflbl" '
+                 f'text-anchor="end">100% (mismos presentados)</text>')
+    p.append(f'<text x="{(SML+SW-SMR)/2:.1f}" y="{SH-8}" class="axtitle" text-anchor="middle">'
+             f'presentaron examen en línea, 2026 (escala log)</text>')
+    p.append(f'<text x="14" y="{(SMT+SH-SMB)/2:.1f}" class="axtitle" text-anchor="middle" '
+             f'transform="rotate(-90 14 {(SMT+SH-SMB)/2:.1f})">presentaron en control (escala log)</text>')
+
+    for o in offers:
+        cx, cy = fx(o["pres26"]), fy(max(o["presc"], 1))
+        tip = {"carrera": nice_name(o["carrera"]), "campus": nice_name(o["campus"]),
+               "modalidad": o["modalidad"], "pres26": f'{o["pres26"]:.0f}',
+               "presc": f'{o["presc"]:.0f}', "pct": f'{o["pct"]:.1f}'}
+        p.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" class="pt" '
+                 f'data-tip=\'{_html.escape(json.dumps(tip))}\'/>')
+    p.append('</svg>')
+    return "".join(p)
+
+
+# --------------------------------------------------------------------------- #
+# Ranking (barras) — las TOP_K con menor % de retención
+# --------------------------------------------------------------------------- #
+
+def build_barh(offers: list[dict], top_k: int = TOP_K) -> str:
+    low = offers[:top_k]
+    rows = []
+    for o in low:
+        modal = "" if o["modalidad"] == "escolarizado" else f" · {o['modalidad']}"
+        rows.append(
+            f'<div class="barh-row">'
+            f'<span class="barh-label">{esc(nice_name(o["carrera"]))}'
+            f'<i>{esc(nice_name(o["campus"]))}{esc(modal)}</i></span>'
+            f'<span class="barh-track"><span class="barh-fill" '
+            f'style="width:{o["pct"]:.1f}%"></span></span>'
+            f'<span class="barh-val">{o["pct"]:.1f}%'
+            f'<i>{o["presc"]:.0f}/{o["pres26"]:.0f}</i></span></div>')
+    return "".join(rows)
+
+
+# --------------------------------------------------------------------------- #
+# Tabla completa (ordenable + buscable)
+# --------------------------------------------------------------------------- #
+
+def build_table(offers: list[dict]) -> str:
+    head = (
+        '<tr>'
+        '<th class="c sortable sorted" data-key="carrera">Carrera<span class="arrow">▾</span></th>'
+        '<th class="c sortable" data-key="campus">Campus<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="modalidad">Modalidad<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="pres26">Presentaron 2026<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="presc">Presentaron control<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="pct">% en control<span class="arrow">▾</span></th>'
+        '</tr>')
+    rows = []
+    for o in offers:
+        modal = "" if o["modalidad"] == "escolarizado" else f" · {o['modalidad']}"
+        rows.append(
+            f'<tr data-carrera="{esc(o["carrera"].lower())}" '
+            f'data-campus="{esc(o["campus"].lower())}" data-modalidad="{esc(o["modalidad"])}" '
+            f'data-pres26="{o["pres26"]:.0f}" data-presc="{o["presc"]:.0f}" data-pct="{o["pct"]:.2f}">'
+            f'<td class="c">{esc(nice_name(o["carrera"]))}</td>'
+            f'<td class="c">{esc(nice_name(o["campus"]))}{esc(modal)}</td>'
+            f'<td>{esc(o["modalidad"])}</td>'
+            f'<td>{o["pres26"]:,.0f}</td>'
+            f'<td>{o["presc"]:,.0f}</td>'
+            f'<td class="hl">{o["pct"]:.1f}%</td></tr>')
+    return (f'<table class="tbl" id="tblPres"><thead>{head}</thead>'
+            f'<tbody>{"".join(rows)}</tbody></table>')
+
+
+def build_inner(offers: list[dict], summary: dict) -> str:
+    ordered = sorted(offers, key=lambda o: o["pct"])
+    scatter = build_scatter(offers)
+    barh = build_barh(ordered, TOP_K)
+    table = build_table(ordered)
+
+    css = f"""
+<style>
+.viz-root {{ color-scheme:light; --surface-1:#fcfcfb; --plane:#f9f9f7;
+  --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
+  --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10); --ctrl:{CTRL_LIGHT};
+  font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+  background:var(--plane); color:var(--text-primary); padding:24px; max-width:1080px; margin:0 auto; }}
+@media (prefers-color-scheme:dark) {{ :root:where(:not([data-theme="light"])) .viz-root {{
+  color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d; --text-primary:#fff;
+  --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --axis:#383835;
+  --border:rgba(255,255,255,.10); --ctrl:{CTRL_DARK}; }} }}
+:root[data-theme="dark"] .viz-root {{ color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d;
+  --text-primary:#fff; --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
+  --axis:#383835; --border:rgba(255,255,255,.10); --ctrl:{CTRL_DARK}; }}
+.viz-root h1 {{ font-size:20px; margin:0 0 4px; text-wrap:balance; }}
+.viz-root h2 {{ font-size:14px; margin:22px 0 6px; }}
+.sub {{ color:var(--text-secondary); font-size:13px; margin:0 0 3px; line-height:1.5; }}
+.method {{ color:var(--muted); font-size:12px; margin:0 0 2px; line-height:1.5; }}
+.headline {{ background:var(--surface-1); border:1px solid var(--border);
+  border-left:3px solid var(--ctrl); border-radius:8px; padding:10px 12px;
+  margin:12px 0; font-size:13.5px; line-height:1.5; }}
+.headline b {{ color:var(--ctrl); }}
+.disclaimer {{ border:1px dashed var(--border); border-radius:8px; padding:9px 12px;
+  margin:10px 0; font-size:12px; color:var(--muted); line-height:1.5; font-style:italic; }}
+.chart-wrap {{ background:var(--surface-1); border:1px solid var(--border);
+  border-radius:10px; padding:10px; margin-top:8px; position:relative; }}
+.gridl {{ stroke:var(--grid); stroke-width:1; }}
+.axl {{ fill:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; }}
+.axtitle {{ fill:var(--text-secondary); font-size:11px; }}
+.refline {{ stroke:var(--axis); stroke-width:1.3; stroke-dasharray:4 3; }}
+.reflbl {{ font-size:9.5px; }}
+.pt {{ fill:var(--ctrl); fill-opacity:.55; stroke:var(--surface-1); stroke-width:.6; cursor:pointer; }}
+.pt:hover {{ fill-opacity:.9; }}
+.tip {{ position:fixed; pointer-events:none; z-index:9; background:var(--surface-1);
+  color:var(--text-primary); border:1px solid var(--border); border-radius:8px;
+  padding:8px 10px; font-size:11.5px; box-shadow:0 4px 14px rgba(0,0,0,.18);
+  opacity:0; transition:opacity .1s; max-width:240px; }}
+.tip b {{ color:var(--ctrl); }}
+.barh-wrap {{ margin-top:6px; }}
+.barh-row {{ display:grid; grid-template-columns:220px 1fr 70px; align-items:center;
+  gap:10px; padding:4px 0; }}
+.barh-label {{ font-size:11.5px; color:var(--text-primary); white-space:nowrap;
+  overflow:hidden; text-overflow:ellipsis; }}
+.barh-label i {{ display:block; font-style:normal; font-size:10px; color:var(--muted);
+  overflow:hidden; text-overflow:ellipsis; }}
+.barh-track {{ position:relative; height:14px; background:var(--grid); border-radius:4px; }}
+.barh-fill {{ position:absolute; left:0; top:0; bottom:0; background:var(--ctrl);
+  border-radius:0 4px 4px 0; }}
+.barh-val {{ font-size:11.5px; color:var(--text-secondary); text-align:right;
+  font-variant-numeric:tabular-nums; }}
+.barh-val i {{ display:block; font-style:normal; font-size:9.5px; color:var(--muted); }}
+.controls {{ display:flex; gap:10px; align-items:center; margin:14px 0 8px; flex-wrap:wrap; }}
+.search {{ flex:1; min-width:200px; padding:7px 11px; border:1px solid var(--border);
+  border-radius:7px; background:var(--surface-1); color:var(--text-primary); font-size:13px; }}
+.search::placeholder {{ color:var(--muted); }}
+.count {{ font-size:12px; color:var(--muted); white-space:nowrap; }}
+.tbl-wrap {{ max-height:480px; overflow:auto; border:1px solid var(--border); border-radius:10px; }}
+.tbl {{ border-collapse:collapse; width:100%; font-size:11.5px; }}
+.tbl th,.tbl td {{ text-align:right; padding:6px 9px; border-bottom:1px solid var(--border);
+  font-variant-numeric:tabular-nums; white-space:nowrap; }}
+.tbl th.c,.tbl td.c {{ text-align:left; font-variant-numeric:normal; white-space:normal; }}
+.tbl thead th {{ color:var(--text-secondary); font-weight:600; background:var(--surface-1);
+  position:sticky; top:0; z-index:1; }}
+.tbl th.sortable {{ cursor:pointer; user-select:none; }}
+.tbl th.sortable:hover {{ color:var(--ctrl); }}
+.tbl th .arrow {{ opacity:.35; font-size:9px; margin-left:3px; display:inline-block; }}
+.tbl th.sorted .arrow {{ opacity:1; color:var(--ctrl); }}
+.tbl th.sorted.asc .arrow {{ transform:rotate(180deg); }}
+.tbl td.hl {{ color:var(--ctrl); font-weight:600; }}
+.tbl tbody tr:hover {{ background:var(--plane); }}
+.note {{ color:var(--muted); font-size:12px; margin:14px 0 0; line-height:1.5; }}
+</style>"""
+
+    js = """
+<script>
+(function(){
+  var root=document.querySelector('.viz-root');
+  var tip=document.createElement('div'); tip.className='tip'; root.appendChild(tip);
+  root.querySelectorAll('.pt').forEach(function(c){
+    c.addEventListener('mousemove',function(e){
+      var d=JSON.parse(c.dataset.tip);
+      tip.innerHTML='<b>'+d.carrera+'</b><br>'+d.campus
+        +(d.modalidad!=='escolarizado'?' · '+d.modalidad:'')
+        +'<br>Presentaron 2026: '+d.pres26+'<br>Presentaron control: '+d.presc
+        +'<br>% en control: <b>'+d.pct+'%</b>';
+      tip.style.opacity=1;
+      var x=e.clientX+14,y=e.clientY+14;
+      if(x+250>innerWidth)x=e.clientX-260; tip.style.left=x+'px'; tip.style.top=y+'px';
+    });
+    c.addEventListener('mouseleave',function(){tip.style.opacity=0;});
+  });
+
+  var tbl=document.getElementById('tblPres');
+  var tbody=tbl.querySelector('tbody');
+  var rows=Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+  var countEl=document.getElementById('rowCountP');
+  var searchEl=document.getElementById('searchBoxP');
+
+  function applyFilter(){
+    var q=(searchEl.value||'').toLowerCase().trim();
+    var shown=0;
+    rows.forEach(function(tr){
+      var hit=!q || tr.dataset.carrera.indexOf(q)>-1 || tr.dataset.campus.indexOf(q)>-1
+        || tr.dataset.modalidad.toLowerCase().indexOf(q)>-1;
+      tr.style.display=hit?'':'none';
+      if(hit)shown++;
+    });
+    countEl.textContent='Mostrando '+shown+' de '+rows.length+' ofertas';
+  }
+  searchEl.addEventListener('input',applyFilter);
+  applyFilter();
+
+  var sortState={key:'pct',dir:1};
+  function sortBy(key,dir){
+    var numeric=['pres26','presc','pct'];
+    rows.sort(function(a,b){
+      var av=a.dataset[key],bv=b.dataset[key];
+      if(numeric.indexOf(key)>-1){ av=+av; bv=+bv; }
+      if(av<bv)return -1*dir; if(av>bv)return 1*dir; return 0;
+    });
+    rows.forEach(function(tr){tbody.appendChild(tr);});
+  }
+  tbl.querySelectorAll('th.sortable').forEach(function(th){
+    th.addEventListener('click',function(){
+      var key=th.dataset.key;
+      var dir = (sortState.key===key) ? -sortState.dir : 1;
+      sortState={key:key,dir:dir};
+      tbl.querySelectorAll('th.sortable').forEach(function(t){t.classList.remove('sorted','asc');});
+      th.classList.add('sorted'); if(dir===1)th.classList.add('asc');
+      sortBy(key,dir);
+    });
+  });
+})();
+</script>"""
+
+    return f"""{css}
+<div class="viz-root" data-palette="{CTRL_LIGHT}">
+  <h1>¿Dónde se presentó menos gente al control? · UNAM</h1>
+  <p class="sub">Compara, por carrera-campus, cuántos aspirantes
+  <b>presentaron</b> el examen en línea de 2026 contra cuántos presentaron
+  el <b style="color:var(--ctrl)">examen de control presencial</b>. Es
+  participación (quién se apareció), no resultado — para eso ver
+  "Control presencial vs. 2026 en línea".</p>
+  <p class="method"><b>Método:</b> {summary['n']} ofertas con ≥{MIN_N}
+  presentados en 2026 y dato de control. "% en control" = presentaron
+  control ÷ presentaron 2026.</p>
+  <div class="disclaimer">Nota: este análisis es una interpretación propia,
+  no información oficial de la UNAM ni de la Comisión Técnica. Es
+  descriptivo — no identifica aspirantes ni establece causas.</div>
+  <div class="headline">
+    De <b>{summary['total26']:,}</b> aspirantes que presentaron en 2026 (en
+    estas {summary['n']} ofertas), solo <b>{summary['totalc']:,}</b> volvieron
+    a presentarse en el control — <b>{summary['overall_pct']:.1f}%</b> en
+    conjunto (mediana por oferta: {summary['median_pct']:.1f}%). Varía mucho:
+    <b>{summary['n_bajo']}</b> ofertas tuvieron menos del 20% de participación,
+    <b>{summary['n_medio']}</b> entre 20% y 50%, y <b>{summary['n_alto']}</b>
+    igual o más del 50%.
+  </div>
+  <h2>Presentaron 2026 vs. presentaron control (cada punto, una oferta)</h2>
+  <div class="chart-wrap">{scatter}</div>
+  <h2>Las {TOP_K} ofertas con menor % de participación en el control</h2>
+  <div class="barh-wrap">{barh}</div>
+  <h2>Tabla completa (ordenada de menor a mayor % en control)</h2>
+  <div class="controls">
+    <input id="searchBoxP" class="search" type="text"
+      placeholder="Buscar carrera, campus o modalidad…">
+    <span id="rowCountP" class="count"></span>
+  </div>
+  <div class="tbl-wrap">{table}</div>
+  <p class="note">Fuente: resultados y metadata DGAE-UNAM 2021–2026 (campo
+  Presentaron Examen) y `metadata_control_2026.csv`
+  (`src/scrape_control.py`, examen de control presencial). Escala logarítmica
+  en el scatter: rangos muy distintos entre ofertas grandes y chicas.
+  Análisis descriptivo.</p>
+  {js}
+</div>"""
+
+
+def _standalone(inner: str) -> str:
+    return ("<!doctype html><html lang=es><head><meta charset=utf-8>"
+            "<title>Presentaron: 2026 vs Control</title></head>"
+            "<body style='margin:0'>" + inner + "</body></html>")
+
+
+def main() -> None:
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    offers, summary = load()
+    print("resumen:", summary)
+    print("Top 10 con menor % en control:")
+    for o in offers[:10]:
+        print(f"  {o['pct']:5.1f}%  {o['presc']:.0f}/{o['pres26']:.0f}  "
+              f"{o['carrera'][:30]} - {o['campus'][:22]} [{o['modalidad']}]")
+
+    pd.DataFrame(offers).to_csv(OUT_DIR / "presentaron_control.csv", index=False, encoding="utf-8")
+
+    inner = build_inner(offers, summary)
+    (OUT_DIR / "presentaron_control.html").write_text(inner, encoding="utf-8")
+    (OUT_DIR / "_presentaron_control_preview.html").write_text(
+        _standalone(inner), encoding="utf-8")
+    print("HTML generado en", OUT_DIR)
+
+
+if __name__ == "__main__":
+    main()

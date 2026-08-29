@@ -703,6 +703,13 @@ mejoras").
     2026→Control), con el tamaño de cada punto representando el número de
     admitidos en esa fase. El cambio medio de 2026 a control fue de
     -25 puntos en las 50 ofertas con mayor incremento 2025→2026.
+  - `presentaron_control.py` — participación, no resultado: cuántos
+    aspirantes presentaron el examen en línea de 2026 contra cuántos
+    presentaron el control (211 ofertas, ≥10 presentados en 2026).
+    Scatter log-log + ranking de menor participación + tabla completa.
+    Solo 23.6% de quienes presentaron en 2026 volvió a presentarse en el
+    control (mediana por oferta: 36.6%); Médico Cirujano-Facultad de
+    Medicina, de nuevo la carrera insignia, tuvo apenas 8.1%.
 
 ### Sitio (GitHub Pages)
 

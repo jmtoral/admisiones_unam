@@ -28,6 +28,7 @@ import examen_control as m_examen          # noqa: E402
 import examen_control_resultados as m_ctrlres  # noqa: E402
 import minimo_ingreso as m_min             # noqa: E402
 import minimo_ingreso_control as m_minctrl # noqa: E402
+import presentaron_control as m_pres       # noqa: E402
 import top20_medianas as m_top20           # noqa: E402
 
 REPO_URL = "https://github.com/jmtoral/admisiones_unam"
@@ -72,6 +73,10 @@ PAGES = [
          desc="El puntaje mínimo de ingreso 2021-2026, extendido con el examen de "
               "control como una posición más; el tamaño del punto es el número de admitidos.",
          thumb="minimo_ingreso_control.png"),
+    dict(slug="presentaron-control", title="¿Dónde se presentó menos gente al control?",
+         desc="Participación: cuántos presentaron el examen en línea de 2026 contra "
+              "cuántos presentaron el control — solo 23.6% en conjunto volvió a presentarse.",
+         thumb="presentaron_control.png"),
 ]
 
 
@@ -93,6 +98,7 @@ def build_inners() -> dict[str, str]:
         "top20": m_top20.build_inner(m_top20.load_top()),
         "examen-control": m_examen.build_inner(*m_examen.load()),
         "control-resultados": m_ctrlres.build_inner(o_cr, s_cr, top_k=len(o_cr)),
+        "presentaron-control": m_pres.build_inner(*m_pres.load()),
     }
 
 
