@@ -193,11 +193,18 @@ def card(o):
         f'{spark(o)}</figure>')
 
 
-def build_inner(offers, summary):
-    # Selección: top TOP_K por incremento 2025->2026 (igual que antes).
+def build_inner(offers, summary, top_k: int = TOP_K):
+    # Selección: top top_k por incremento 2025->2026 (igual que antes;
+    # top_k=len(offers) o mayor incluye todas las comparables).
     # Orden de despliegue: del mínimo 2026 más alto al más bajo.
-    top = sorted(offers[:TOP_K], key=lambda o: -o["by"][2026])
+    top = sorted(offers[:top_k], key=lambda o: -o["by"][2026])
     facets = "".join(card(o) for o in top)
+    if top_k >= len(offers):
+        eligen_txt = "todas las ofertas comparables (con 2025, 2026 y control)"
+    else:
+        eligen_txt = (f"las <b>{len(top)}</b> ofertas con mayor incremento del "
+                     "puntaje mínimo de 2025 a 2026, restringidas a las que "
+                     "también tienen dato de control")
     prev_txt = ", ".join(f"{k.replace('-', '→')}: {v:+.1f}"
                          for k, v in summary["prev"].items())
     rows = "".join(
@@ -304,10 +311,9 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
   posición más después de 2026. El tamaño de cada punto es el <b>número de
   admitidos</b> en esa fase (no un tamaño fijo); pasa el mouse sobre un panel
   para ver el número exacto en cada una.</p>
-  <p class="method"><b>Cómo se eligen:</b> las <b>{TOP_K}</b> ofertas con mayor
-  incremento del puntaje mínimo de 2025 a 2026, restringidas a las que
-  también tienen dato de control (para que la línea tenga con qué
-  continuar); se muestran ordenadas de mayor a menor mínimo 2026.</p>
+  <p class="method"><b>Cómo se eligen:</b> {eligen_txt}
+  (para que la línea tenga con qué continuar); se muestran ordenadas de
+  mayor a menor mínimo 2026.</p>
   <div class="headline">
     El puntaje mínimo subió en <b>{summary['up']} de {summary['n']}</b> ofertas
     comparables de 2025 a 2026 (bajó en {summary['down']}). El alza media fue de

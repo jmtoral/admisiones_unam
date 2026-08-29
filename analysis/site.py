@@ -79,6 +79,8 @@ def build_inners() -> dict[str, str]:
     o_c, s_c = m_comp.load()
     o_m, s_m = m_min.load()
     o_b, gcut_b, fa_b = m_base.load()
+    o_mc, s_mc = m_minctrl.load()
+    o_cr, s_cr = m_ctrlres.load()
     return {
         "comparativa": m_comp.build_inner(o_c, s_c, top_k=50, png=False),
         "estables": m_estables.build_inner(o_c, s_c, top_k=15),
@@ -87,10 +89,10 @@ def build_inners() -> dict[str, str]:
         "casi-cero": m_ccero.build_inner(m_ccero.load()),
         "brecha": m_brecha.build_inner(m_brecha.load()),
         "minimo": m_min.build_inner(o_m, s_m),
-        "minimo-control": m_minctrl.build_inner(*m_minctrl.load()),
+        "minimo-control": m_minctrl.build_inner(o_mc, s_mc, top_k=len(o_mc)),
         "top20": m_top20.build_inner(m_top20.load_top()),
         "examen-control": m_examen.build_inner(*m_examen.load()),
-        "control-resultados": m_ctrlres.build_inner(*m_ctrlres.load(), top_k=50),
+        "control-resultados": m_ctrlres.build_inner(o_cr, s_cr, top_k=len(o_cr)),
     }
 
 

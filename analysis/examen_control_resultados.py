@@ -447,7 +447,7 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K) -> str:
     <span id="rowCount2" class="count"></span>
   </div>
   <div class="tbl-wrap">{table}</div>
-  <h2>Top {top_k} ofertas por tamaño de muestra en el control</h2>
+  <h2>{"Todas las" if top_k >= len(offers) else f"Top {top_k}"} ofertas por tamaño de muestra en el control</h2>
   <div class="grid-f">{facets}</div>
   <p class="note">Fuente: resultados DGAE-UNAM. "En línea" y "2021–2025" de
   `resultados_todos.csv`; "Control" de `resultados_control_2026.csv`
