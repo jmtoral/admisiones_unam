@@ -46,21 +46,24 @@ def load():
     m = pd.read_csv(SRC, dtype=str, keep_default_na=False, na_filter=False)
     m["am"] = pd.to_numeric(m["aciertos_minimos"], errors="coerce")
     m["sel"] = pd.to_numeric(m["seleccionados"], errors="coerce")
+    m["pres"] = pd.to_numeric(m["presentaron_examen"], errors="coerce")
     m["year"] = m["year"].astype(int)
     m = m[m["am"].notna()]
 
     mc = pd.read_csv(SRC_CONTROL, dtype=str, keep_default_na=False, na_filter=False)
     mc["am"] = pd.to_numeric(mc["aciertos_minimos"], errors="coerce")
     mc["sel"] = pd.to_numeric(mc["seleccionados"], errors="coerce")
+    mc["pres"] = pd.to_numeric(mc["presentaron_examen"], errors="coerce")
     mc = _canonicalize_control(mc)
     mc = mc[mc["am"].notna()]
-    ctrl_by_key = {(r["carrera"], r["campus"], r["modalidad"]): (r["am"], r["sel"])
+    ctrl_by_key = {(r["carrera"], r["campus"], r["modalidad"]): (r["am"], r["sel"], r["pres"])
                    for _, r in mc.iterrows()}
 
     offers = []
     for (car, cam, mod), sub in m.groupby(["carrera", "campus", "modalidad"]):
         by = dict(zip(sub["year"], sub["am"]))
         sel = dict(zip(sub["year"], sub["sel"]))
+        pres = dict(zip(sub["year"], sub["pres"]))
         if 2025 not in by or 2026 not in by:
             continue
         ctrl = ctrl_by_key.get((car, cam, mod))
@@ -68,11 +71,13 @@ def load():
             continue
         by["control"] = float(ctrl[0])
         sel["control"] = float(ctrl[1]) if not np.isnan(ctrl[1]) else 0.0
+        pres["control"] = float(ctrl[2]) if not np.isnan(ctrl[2]) else 0.0
 
         offers.append({
             "carrera": car, "campus": cam, "modalidad": mod,
             "by": {k: float(v) for k, v in by.items() if not np.isnan(v)},
             "sel": {k: float(v) for k, v in sel.items() if not np.isnan(v)},
+            "pres": {k: float(v) for k, v in pres.items() if not np.isnan(v)},
             "inc": by[2026] - by[2025],
         })
     offers.sort(key=lambda o: -o["inc"])
@@ -177,10 +182,21 @@ def card(o):
     else:
         pct_txt = "sin personas admitidas suficientes para comparar"
 
+    pres26 = o["pres"].get(2026)
+    presc = o["pres"].get("control")
+    if pres26 and presc is not None:
+        pctp = presc / pres26 * 100
+        pctp_txt = (f'control: <b class="c">{pctp:.0f}%</b> de quienes presentaron '
+                   f'en 2026 ({presc:.0f} de {pres26:.0f})')
+    else:
+        pctp_txt = "sin presentados suficientes para comparar"
+
     tip = {
         "carrera": o["carrera"].title(), "campus": o["campus"].title() + mod,
         "admitidos": {(str(p) if isinstance(p, int) else "Control"): f'{o["sel"].get(p, 0):.0f}'
                       for p in POS if p in o["by"]},
+        "presentaron": {(str(p) if isinstance(p, int) else "Control"): f'{o["pres"].get(p, 0):.0f}'
+                        for p in POS if p in o["by"]},
     }
 
     return (
@@ -190,6 +206,7 @@ def card(o):
         f'<div class="badge">mín {o["by"][2025]:.0f} → {o["by"][2026]:.0f}'
         f'<b class="c">{esc(ctrl_txt)}</b></div>'
         f'<div class="badge2">{pct_txt}</div>'
+        f'<div class="badge2">{pctp_txt}</div>'
         f'{spark(o)}</figure>')
 
 
@@ -287,11 +304,12 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
   root.querySelectorAll('.facet').forEach(function(f){
     f.addEventListener('mousemove',function(e){
       var d=JSON.parse(f.dataset.tip);
-      var rows='<tr><td colspan=2><b>'+d.carrera+'</b><br>'+d.campus+'</td></tr>'
-        +'<tr><td colspan=2 class=yl>personas admitidas por fase:</td></tr>';
+      var rows='<tr><td colspan=3><b>'+d.carrera+'</b><br>'+d.campus+'</td></tr>'
+        +'<tr class=yl><td>fase</td><td>presentaron</td><td>admitidos</td></tr>';
       Object.keys(d.admitidos).forEach(function(k){
         var cls=k==='Control'?' class=hc':(k==='2026'?' class=h26':' class=yl');
-        rows+='<tr'+cls+'><td'+cls+'>'+k+'</td><td'+cls+'>'+d.admitidos[k]+'</td></tr>';
+        rows+='<tr'+cls+'><td'+cls+'>'+k+'</td><td'+cls+'>'+d.presentaron[k]
+          +'</td><td'+cls+'>'+d.admitidos[k]+'</td></tr>';
       });
       tip.innerHTML='<table>'+rows+'</table>'; tip.style.opacity=1;
       var x=e.clientX+14,y=e.clientY+14;
@@ -310,8 +328,10 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
   Cada mini-gráfica es la trayectoria del mínimo, extendida con el
   <b style="color:var(--ctrl)">examen de control presencial</b> como una
   posición más después de 2026. El tamaño de cada punto es el <b>número de
-  personas admitidas</b> en esa fase (no un tamaño fijo); pasa el mouse
-  sobre un panel para ver el número exacto en cada una.</p>
+  personas admitidas</b> en esa fase (no un tamaño fijo). Cada tarjeta
+  también muestra qué porcentaje de quienes se presentaron y de quienes
+  fueron admitidos en 2026 vuelve a aparecer en el control; pasa el mouse
+  sobre un panel para ver los números exactos de cada fase.</p>
   <p class="method"><b>Cómo se eligen:</b> {eligen_txt}
   (para que la línea tenga con qué continuar); se muestran ordenadas de
   mayor a menor mínimo 2026.</p>
