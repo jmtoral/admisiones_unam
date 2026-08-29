@@ -173,7 +173,7 @@ def card(o):
     selc = o["sel"].get("control")
     if sel26 and selc is not None:
         pct = selc / sel26 * 100
-        pct_txt = f'control: <b class="c">{pct:.0f}%</b> de personas admitidas en 2026'
+        pct_txt = f'control: <b class="c">{pct:.0f}%</b> de personas admitidas en 2026 ({selc:.0f} de {sel26:.0f})'
     else:
         pct_txt = "sin personas admitidas suficientes para comparar"
 
@@ -188,7 +188,7 @@ def card(o):
         f'<figcaption><span class="ca">{esc(o["carrera"].title())}</span>'
         f'<span class="cc">{esc(o["campus"].title())}{esc(mod)}</span></figcaption>'
         f'<div class="badge">mín {o["by"][2025]:.0f} → {o["by"][2026]:.0f}'
-        f'<b class="c">{esc(ctrl_txt)}</b> <b>(+{o["inc"]:.0f})</b></div>'
+        f'<b class="c">{esc(ctrl_txt)}</b></div>'
         f'<div class="badge2">{pct_txt}</div>'
         f'{spark(o)}</figure>')
 
@@ -253,7 +253,7 @@ def build_inner(offers, summary, top_k: int = TOP_K):
 .facet .badge {{ font-size:10.5px; color:var(--text-secondary); font-variant-numeric:tabular-nums; margin:2px 0 1px; }}
 .facet .badge b {{ color:var(--y2026); }} .facet .badge b.c {{ color:var(--ctrl); }}
 .facet .badge2 {{ font-size:9.5px; color:var(--muted); font-variant-numeric:tabular-nums; margin:0 0 3px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+  line-height:1.3; min-height:2.6em; }}
 .facet .badge2 b.c {{ color:var(--ctrl); }}
 .tip {{ position:fixed; pointer-events:none; z-index:9; background:var(--surface-1);
   color:var(--text-primary); border:1px solid var(--border); border-radius:8px;
