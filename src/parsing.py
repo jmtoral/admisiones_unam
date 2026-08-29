@@ -131,17 +131,26 @@ def modalidad_from_title(html: str, *, is_suayed: bool = False) -> str:
 # --------------------------------------------------------------------------- #
 
 _BTN_SELECTOR = "a.btn.btn-link.waves-effect.waves-light"
+_BTN_CLASSES = {"btn", "btn-link", "waves-effect", "waves-light"}
 
 
-def parse_index(html: str, base_url: str) -> list[IndexEntry]:
+def parse_index(
+    html: str, base_url: str, *, btn_classes: set[str] | None = None
+) -> list[IndexEntry]:
     """Extrae los botones (carrera-campus-tabla) de una página índice.
 
     Cada carrera es un <h3>; los botones que le siguen (hasta el próximo <h3>)
-    son sus campus. El href ya es absoluto en el sitio, pero lo pasamos por
-    urljoin con `base_url` por robustez ante hrefs relativos.
+    son sus campus. El href puede ser absoluto (resultados/) o relativo
+    (resultados_control/, verificado en vivo 2026); siempre se pasa por
+    urljoin con `base_url`.
+
+    `btn_classes` permite reconocer variantes de botón (p. ej. el examen de
+    control usa `btn btn-primary` en vez de `btn btn-link waves-effect
+    waves-light`). Default: la variante original de `resultados/`.
     """
     soup = _soup(html)
     entries: list[IndexEntry] = []
+    wanted = btn_classes or _BTN_CLASSES
 
     # Recorremos el documento en orden; llevamos la carrera <h3> vigente y la
     # asignamos a cada botón que aparezca después.
@@ -153,7 +162,7 @@ def parse_index(html: str, base_url: str) -> list[IndexEntry]:
 
         # Es un <a>: ¿es uno de los botones de campus?
         classes = set(el.get("class") or [])
-        if not {"btn", "btn-link", "waves-effect", "waves-light"}.issubset(classes):
+        if not wanted.issubset(classes):
             continue
 
         href = el.get("href")
@@ -252,6 +261,103 @@ def parse_table_meta(html: str, *, is_suayed: bool = False) -> TableMeta:
         campus=campus,
         modalidad=modalidad,
         **meta_fields,
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Página de tabla del EXAMEN DE CONTROL (2026): DOM distinto, verificado en vivo.
+#
+# No hay <table>: cada aspirante es una tarjeta `.btn-number` dentro de
+# `#buttons-container`. La metadata usa `<span id="stat-*">` en vez del <h5>
+# `Oferta=... Aspirantes=...`. El `<h2>` es solo `(codigo) CARRERA` (sin el
+# prefijo "Concurso Licenciatura AAAA :" ni el sufijo "- Campus - Modalidad");
+# campus y modalidad viven en el <h4 class="text-muted"> siguiente, separados
+# por " — ". El botón de cada tarjeta enlaza a un portal externo con
+# usuario/contraseña (primeringreso1.dgae.unam.mx/.../ingresar.html) — es el
+# equivalente al viejo "Diagnóstico": se descarta sin seguirlo ni guardarlo.
+# --------------------------------------------------------------------------- #
+
+
+def parse_table_meta_control(html: str, *, is_suayed: bool = False) -> TableMeta:
+    """Parsea la cabecera (<h1>/<h2>/<h4> + `#stat-*`) de una tabla de control."""
+    soup = _soup(html)
+
+    h2 = soup.find("h2")
+    h2_text = _clean(h2.get_text()) if h2 else ""
+    m = re.match(r"^\((?P<codigo>[^)]*)\)\s*(?P<carrera>.+)$", h2_text)
+    codigo_corto = _clean(m.group("codigo")) if m else ""
+    carrera = _clean(m.group("carrera")) if m else ""
+
+    campus, modalidad = "", ("suayed" if is_suayed else "")
+    h4 = soup.find("h4", class_="text-muted")
+    if h4:
+        parts = _clean(h4.get_text()).split("—")
+        campus = _clean(parts[0]) if parts else ""
+        if len(parts) >= 2:
+            modalidad = normalize_modalidad(parts[-1], is_suayed=is_suayed)
+
+    def stat(id_: str) -> str:
+        el = soup.find(id=id_)
+        return _clean(el.get_text()) if el else ""
+
+    return TableMeta(
+        codigo_corto=codigo_corto,
+        carrera=carrera,
+        campus=campus,
+        modalidad=modalidad,
+        oferta=stat("stat-oferta"),
+        aspirantes=stat("stat-aspirantes"),
+        presentaron_examen=stat("stat-presentaron"),
+        aciertos_minimos=stat("stat-aciertos"),
+        seleccionados=stat("stat-seleccionados"),
+    )
+
+
+# Guiones usados por el sitio para "no seleccionado" (vacío en nuestro esquema).
+_DASH_CHARS = {"—", "-", "–", ""}
+
+
+def parse_table_rows_control(html: str) -> list[TableRow]:
+    """Extrae las tarjetas de aspirante de `#buttons-container` (examen de
+    control). Sin placeholder que descartar: la tarjeta "No se encontraron
+    resultados" vive fuera de `#buttons-container` (o el contenedor está
+    vacío), nunca se confunde con una tarjeta real."""
+    soup = _soup(html)
+    container = soup.find(id="buttons-container")
+    if container is None:
+        return []
+
+    rows: list[TableRow] = []
+    for card in container.select("a.btn-number"):
+        numero = _clean(card.select_one(".numero").get_text()) if card.select_one(".numero") else ""
+        badges = card.select(".meta .badge")
+
+        aciertos = ""
+        acreditado = ""
+        for b in badges:
+            txt = _clean(b.get_text())
+            if "badge-aciertos" in (b.get("class") or []):
+                aciertos = txt.replace("aciertos", "").strip()
+            else:
+                acreditado = "" if txt in _DASH_CHARS else txt
+
+        detalle_el = card.select_one(".detalle")
+        detalles = _clean(detalle_el.get_text()) if detalle_el else ""
+        # BeautifulSoup vuelve "&nbsp;" en '\xa0'; _clean ya lo colapsa a "".
+
+        if not any([numero, aciertos, acreditado, detalles]):
+            continue
+        rows.append(TableRow(numero_comprobante=numero, aciertos=aciertos,
+                              acreditado=acreditado, detalles=detalles))
+
+    return rows
+
+
+def parse_table_control(html: str, *, is_suayed: bool = False) -> ParsedTable:
+    """Parsea una página de tabla completa del examen de control."""
+    return ParsedTable(
+        meta=parse_table_meta_control(html, is_suayed=is_suayed),
+        rows=parse_table_rows_control(html),
     )
 
 

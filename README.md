@@ -147,6 +147,44 @@ Reglas de parseo:
 - `Aciertos` puede venir vacío. `Acreditado` toma `S`, `N`, `C` o vacío.
 - Fuerza **UTF-8** en lectura y escritura.
 
+### Examen de control (2026) — DOM distinto, fuente aparte
+
+En agosto de 2026 la DGAE publicó resultados de un **examen de control
+presencial** en `Licenciatura2026/resultados_control/{area}{mod}.html` (y su
+equivalente en `Suayed2026/.../resultados_control/`). Mismos 10 índices que la
+fuente regular (220 ofertas en total), pero **DOM distinto**, verificado en
+vivo antes de escalar (regla dura #9):
+
+- Botones del índice: `a.btn.btn-primary` (no `btn-link waves-effect
+  waves-light`), con `href` **relativos** (no absolutos).
+- Sin `<table>`: cada aspirante es una tarjeta `a.btn-number` dentro de
+  `#buttons-container`, con el número en `.numero`, aciertos en
+  `.badge-aciertos` (texto `"NN aciertos"`, ausente si no presentó) y estatus
+  en un segundo badge (`S`/`N`/`C`/`—`; el guión equivale a vacío).
+- Metadata por `<span id="stat-oferta">`, `#stat-aspirantes`,
+  `#stat-presentaron`, `#stat-aciertos` (= aciertos mínimos),
+  `#stat-seleccionados` — no por el `<h5>Oferta=...` de siempre. El `<h2>` es
+  solo `(código) CARRERA`; campus y modalidad viven en un
+  `<h4 class="text-muted">` separado por " — ".
+- Cada tarjeta enlaza a un portal externo con usuario/contraseña
+  (`primeringreso1.dgae.unam.mx/.../ingresar.html`) para diagnóstico
+  individual — equivale a la vieja columna `Diagnóstico`: **se descarta sin
+  seguirlo ni guardarlo**, por decisión explícita (no se requiere ni se
+  intenta autenticación).
+- Un `<h4>No se encontraron resultados</h4>` está **siempre presente** en el
+  HTML estático (placeholder de un buscador cliente-side); no indica que la
+  oferta esté vacía — el conteo real sale de las tarjetas en
+  `#buttons-container`.
+
+Parseo en `parsing.parse_table_control()` / `parse_index_control` (vía el
+parámetro `btn_classes` de `parse_index()`); descubrimiento + extracción en
+`src/scrape_control.py`, con **caché y salidas separadas** de la fuente
+regular (`data/raw_html_control/`,
+`data/consolidated/resultados_control_2026.csv` /
+`metadata_control_2026.csv`) — el `codigo` de una tabla de control puede
+coincidir con el de la tabla regular de la misma oferta, y mezclarlas
+corrompería `resultados_todos.csv`.
+
 ---
 
 ## Estructura del proyecto
@@ -586,6 +624,10 @@ Por ello, en el repositorio:
   por carrera-campus-año).
 - No se versiona el maestro por aspirante (`resultados_todos.csv`); se mantiene
   local y se regenera con el pipeline (además supera el límite de GitHub).
+- Mismo criterio para el examen de control: se versiona `metadata_control_2026.csv`
+  (agregado) y `manifest_control_2026.csv` (índice), no
+  `resultados_control_2026.csv` (nivel aspirante) — aunque su tamaño sí cabría en
+  GitHub, la razón de privacidad aplica igual.
 
 ---
 
@@ -645,6 +687,15 @@ mejoras").
   - `base_sin_p75.py` — densidad de la "base" (solo quienes quedaron ≤ el p75
     histórico de cada oferta): coincide entre años. El cambio de 2026 está solo
     por encima del corte (25% → 53% lo superó).
+  - `examen_control.py` — a quién convocar a un examen de control presencial
+    según el criterio de la Comisión Técnica (mín. de 2026 o el histórico más
+    bajo 2021-2025); las 220 ofertas, sin filtro de tamaño.
+  - `examen_control_resultados.py` — con los resultados YA publicados del
+    examen de control (`src/scrape_control.py`): compara su distribución
+    contra 2026-en-línea y contra 2021-2025. Corrección mediana del 59% de
+    la distancia a lo histórico, pero muy despareja entre ofertas (17%-100%);
+    Médico Cirujano-Facultad de Medicina, la carrera insignia del resto de
+    este análisis, es de las que menos corrigió (17%).
 
 ### Sitio (GitHub Pages)
 

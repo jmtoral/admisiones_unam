@@ -25,6 +25,7 @@ import casi_perfecto_2026 as m_cperf       # noqa: E402
 import comparativa_2026 as m_comp          # noqa: E402
 import comparativa_estables as m_estables  # noqa: E402
 import examen_control as m_examen          # noqa: E402
+import examen_control_resultados as m_ctrlres  # noqa: E402
 import minimo_ingreso as m_min             # noqa: E402
 import top20_medianas as m_top20           # noqa: E402
 
@@ -62,6 +63,10 @@ PAGES = [
          desc="Por carrera-campus (todas, sin filtro de tamaño): a cuántos aspirantes "
               "de 2026 convocar según el criterio de la Comisión Técnica.",
          thumb="examen_control.png"),
+    dict(slug="control-resultados", title="2026 en línea vs. Control: ¿corrigió?",
+         desc="Ya con resultados del examen de control presencial: corrección mediana "
+              "de 59%, pero muy despareja — Médico Cirujano-CU solo 17%.",
+         thumb="examen_control_resultados.png"),
 ]
 
 
@@ -79,6 +84,7 @@ def build_inners() -> dict[str, str]:
         "minimo": m_min.build_inner(o_m, s_m),
         "top20": m_top20.build_inner(m_top20.load_top()),
         "examen-control": m_examen.build_inner(*m_examen.load()),
+        "control-resultados": m_ctrlres.build_inner(*m_ctrlres.load(), top_k=50),
     }
 
 
