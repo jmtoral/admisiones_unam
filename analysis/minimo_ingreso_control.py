@@ -173,9 +173,9 @@ def card(o):
     selc = o["sel"].get("control")
     if sel26 and selc is not None:
         pct = selc / sel26 * 100
-        pct_txt = f'control: <b class="c">{pct:.0f}%</b> de los admitidos 2026 ({selc:.0f} de {sel26:.0f})'
+        pct_txt = f'control: <b class="c">{pct:.0f}%</b> de personas admitidas en 2026'
     else:
-        pct_txt = "sin admitidos suficientes para comparar"
+        pct_txt = "sin personas admitidas suficientes para comparar"
 
     tip = {
         "carrera": o["carrera"].title(), "campus": o["campus"].title() + mod,
@@ -252,7 +252,8 @@ def build_inner(offers, summary, top_k: int = TOP_K):
 .facet .cc {{ font-size:10px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
 .facet .badge {{ font-size:10.5px; color:var(--text-secondary); font-variant-numeric:tabular-nums; margin:2px 0 1px; }}
 .facet .badge b {{ color:var(--y2026); }} .facet .badge b.c {{ color:var(--ctrl); }}
-.facet .badge2 {{ font-size:9.5px; color:var(--muted); font-variant-numeric:tabular-nums; margin:0 0 3px; }}
+.facet .badge2 {{ font-size:9.5px; color:var(--muted); font-variant-numeric:tabular-nums; margin:0 0 3px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
 .facet .badge2 b.c {{ color:var(--ctrl); }}
 .tip {{ position:fixed; pointer-events:none; z-index:9; background:var(--surface-1);
   color:var(--text-primary); border:1px solid var(--border); border-radius:8px;
@@ -287,7 +288,7 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
     f.addEventListener('mousemove',function(e){
       var d=JSON.parse(f.dataset.tip);
       var rows='<tr><td colspan=2><b>'+d.carrera+'</b><br>'+d.campus+'</td></tr>'
-        +'<tr><td colspan=2 class=yl>admitidos por fase:</td></tr>';
+        +'<tr><td colspan=2 class=yl>personas admitidas por fase:</td></tr>';
       Object.keys(d.admitidos).forEach(function(k){
         var cls=k==='Control'?' class=hc':(k==='2026'?' class=h26':' class=yl');
         rows+='<tr'+cls+'><td'+cls+'>'+k+'</td><td'+cls+'>'+d.admitidos[k]+'</td></tr>';
@@ -309,8 +310,8 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
   Cada mini-gráfica es la trayectoria del mínimo, extendida con el
   <b style="color:var(--ctrl)">examen de control presencial</b> como una
   posición más después de 2026. El tamaño de cada punto es el <b>número de
-  admitidos</b> en esa fase (no un tamaño fijo); pasa el mouse sobre un panel
-  para ver el número exacto en cada una.</p>
+  personas admitidas</b> en esa fase (no un tamaño fijo); pasa el mouse
+  sobre un panel para ver el número exacto en cada una.</p>
   <p class="method"><b>Cómo se eligen:</b> {eligen_txt}
   (para que la línea tenga con qué continuar); se muestran ordenadas de
   mayor a menor mínimo 2026.</p>
@@ -328,7 +329,7 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
     <span><i style="border-color:var(--ctrl);border-top-width:3px"></i>
     <b style="color:var(--ctrl)">Control</b></span>
     <span style="margin-left:auto">eje Y y tamaño de punto: escala propia de cada panel ·
-    pasa el mouse para ver admitidos</span>
+    pasa el mouse para ver personas admitidas</span>
   </div>
   <div class="grid-f">{facets}</div>
   <details><summary>Ver tabla (mínimo por año + control, {len(top)} ofertas)</summary>
