@@ -74,8 +74,8 @@ PAGES = [
               "control como una posición más; el tamaño del punto es el número de admitidos.",
          thumb="minimo_ingreso_control.png"),
     dict(slug="presentaron-control", title="¿Dónde se presentó menos gente al control?",
-         desc="Participación: cuántos presentaron el examen en línea de 2026 contra "
-              "cuántos presentaron el control — solo 23.6% en conjunto volvió a presentarse.",
+         desc="Participación: de quienes fueron convocados al control (no el total de "
+              "2026), 64.7% se presentó — por carrera-campus, quién asistió más y menos.",
          thumb="presentaron_control.png"),
 ]
 

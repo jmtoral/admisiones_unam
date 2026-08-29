@@ -1,12 +1,21 @@
-"""¿Dónde se presentó menos gente al examen de control? · 2026 vs Control.
+"""¿Dónde se presentó menos gente al control? · Asistencia de convocados.
 
-Compara, por carrera-campus, cuántos aspirantes PRESENTARON el examen en
-2026 (en línea) contra cuántos presentaron el examen de control presencial
-(`src/scrape_control.py`). No es lo mismo que "personas admitidas": aquí
-se mide participación (quién se apareció a hacer el examen), no resultado.
+Compara, por carrera-campus, cuántos aspirantes PRESENTARON el examen de
+control presencial (`src/scrape_control.py`) contra cuántos fueron
+CONVOCADOS a presentarlo — no contra el total que presentó el examen en
+línea de 2026.
 
-Unidad = carrera + campus + modalidad. Se requieren ≥MIN_N presentados en
-2026 (evita que ofertas minúsculas con 1-2 aspirantes generen porcentajes
+Importante: no todos los que presentaron en 2026 fueron convocados al
+control, solo quienes alcanzaron el mínimo (el de 2026 o el histórico más
+bajo de 2021-2025, el que fuera menor) — el mismo criterio de la Comisión
+Técnica ya calculado en `examen_control.py`. Usar el total de 2026 como
+denominador (como hacía una versión anterior de este análisis) subestima
+la asistencia real: p. ej. Médico Cirujano-Facultad de Medicina parecía
+tener 8% de "participación" contra el total de 2026, pero 65% contra sus
+1,701 convocados reales — justo la mediana, nada extremo.
+
+Unidad = carrera + campus + modalidad. Se requieren ≥MIN_N convocados
+(evita que ofertas con un puñado de convocados generen porcentajes
 ruidosos). Análisis descriptivo.
 
 Uso:  python analysis/presentaron_control.py
@@ -17,6 +26,7 @@ from __future__ import annotations
 
 import html as _html
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -29,17 +39,15 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ANALYSIS_DIR))
 from examen_control_resultados import _canonicalize_control  # noqa: E402
 from examen_control import ACCENT_FIX, CONNECTORS  # noqa: E402
+import examen_control as ec  # noqa: E402
 
-SRC = ROOT / "data" / "consolidated" / "metadata_carreras.csv"
 SRC_CONTROL = ROOT / "data" / "consolidated" / "metadata_control_2026.csv"
 OUT_DIR = ROOT / "analysis" / "output"
 
 MIN_N = 10
 TOP_K = 20
 CTRL_LIGHT, CTRL_DARK = "#2f6fb0", "#6fa8dc"
-MUTED_LIGHT, MUTED_DARK = "#898781", "#898781"
 
-import re  # noqa: E402
 _TOKEN_RE = re.compile(r"^(\W*)(\w*)(\W*)$", re.UNICODE)
 
 
@@ -63,50 +71,46 @@ def nice_name(s: str) -> str:
 
 
 def load():
-    m = pd.read_csv(SRC, dtype=str, keep_default_na=False, na_filter=False)
-    m["pres"] = pd.to_numeric(m["presentaron_examen"], errors="coerce")
-    m["year"] = m["year"].astype(int)
-    m26 = m[(m["year"] == 2026) & m["pres"].notna()]
+    df_ec, _ = ec.load()  # carrera/campus/modalidad/presentaron_2026/convocados_examen_control/...
 
     mc = pd.read_csv(SRC_CONTROL, dtype=str, keep_default_na=False, na_filter=False)
-    mc["pres"] = pd.to_numeric(mc["presentaron_examen"], errors="coerce")
+    mc["presc"] = pd.to_numeric(mc["presentaron_examen"], errors="coerce")
     mc = _canonicalize_control(mc)
-    mc = mc[mc["pres"].notna()]
-    ctrl_by_key = {(r["carrera"], r["campus"], r["modalidad"]): r["pres"]
-                   for _, r in mc.iterrows()}
+    mc = mc[mc["presc"].notna()][["carrera", "campus", "modalidad", "presc"]]
+
+    merged = df_ec.merge(mc, on=["carrera", "campus", "modalidad"], how="inner")
+    merged = merged[merged["convocados_examen_control"] >= MIN_N]
 
     offers = []
-    for _, row in m26.iterrows():
-        key = (row["carrera"], row["campus"], row["modalidad"])
-        pres26 = row["pres"]
-        presc = ctrl_by_key.get(key)
-        if presc is None or pres26 < MIN_N:
-            continue
-        pct = presc / pres26 * 100 if pres26 else 0.0
+    for row in merged.itertuples():
+        conv = float(row.convocados_examen_control)
+        presc = float(row.presc)
         offers.append({
-            "carrera": row["carrera"], "campus": row["campus"], "modalidad": row["modalidad"],
-            "pres26": float(pres26), "presc": float(presc), "pct": pct,
+            "carrera": row.carrera, "campus": row.campus, "modalidad": row.modalidad,
+            "pres26_total": float(row.presentaron_2026), "convocados": conv, "presc": presc,
+            "pct": presc / conv * 100 if conv else 0.0,
+            "umbral_final": int(row.umbral_final), "fuente_umbral": row.fuente_umbral,
         })
     offers.sort(key=lambda o: o["pct"])
 
-    total26 = sum(o["pres26"] for o in offers)
-    totalc = sum(o["presc"] for o in offers)
+    total_conv = sum(o["convocados"] for o in offers)
+    total_presc = sum(o["presc"] for o in offers)
     pcts = np.array([o["pct"] for o in offers])
     summary = {
         "n": len(offers),
-        "total26": int(total26),
-        "totalc": int(totalc),
-        "overall_pct": totalc / total26 * 100 if total26 else 0.0,
+        "total_conv": int(total_conv),
+        "total_presc": int(total_presc),
+        "overall_pct": total_presc / total_conv * 100 if total_conv else 0.0,
         "median_pct": float(np.median(pcts)) if pcts.size else 0.0,
-        "n_bajo": int((pcts < 20).sum()),
-        "n_medio": int(((pcts >= 20) & (pcts < 50)).sum()),
-        "n_alto": int((pcts >= 50).sum()),
+        "n_bajo": int((pcts < 50).sum()),
+        "n_medio": int(((pcts >= 50) & (pcts < 75)).sum()),
+        "n_alto": int((pcts >= 75).sum()),
     }
     return offers, summary
 
 
 # --------------------------------------------------------------------------- #
-# Scatter (log-log): presentaron 2026 vs presentaron control
+# Scatter (log-log): convocados vs. presentaron control
 # --------------------------------------------------------------------------- #
 SW, SH = 620, 430
 SML, SMR, SMT, SMB = 54, 16, 16, 44
@@ -121,7 +125,7 @@ def _log_scale(vmin, vmax, pmin, pmax):
 
 
 def build_scatter(offers: list[dict]) -> str:
-    xs = [o["pres26"] for o in offers]
+    xs = [o["convocados"] for o in offers]
     ys = [o["presc"] for o in offers]
     xmin, xmax = 10 ** np.floor(np.log10(min(xs))), 10 ** np.ceil(np.log10(max(xs)))
     ymin, ymax = 10 ** np.floor(np.log10(max(min(ys), 1))), 10 ** np.ceil(np.log10(max(ys)))
@@ -130,14 +134,13 @@ def build_scatter(offers: list[dict]) -> str:
     fy = _log_scale(ymin, ymax, SH - SMB, SMT)
 
     def ticks(vmin, vmax):
-        t = []
-        v = vmin
+        t, v = [], vmin
         while v <= vmax * 1.0001:
             t.append(v)
             v *= 10
         return t
 
-    p = [f'<svg viewBox="0 0 {SW} {SH}" width="100%" preserveAspectRatio="xMidYMid meet" id="scatterSvg">']
+    p = [f'<svg viewBox="0 0 {SW} {SH}" width="100%" preserveAspectRatio="xMidYMid meet">']
     for t in ticks(xmin, xmax):
         x = fx(t)
         p.append(f'<line x1="{x:.1f}" y1="{SMT}" x2="{x:.1f}" y2="{SH-SMB}" class="gridl"/>')
@@ -146,33 +149,28 @@ def build_scatter(offers: list[dict]) -> str:
         y = fy(t)
         p.append(f'<line x1="{SML}" y1="{y:.1f}" x2="{SW-SMR}" y2="{y:.1f}" class="gridl"/>')
         p.append(f'<text x="{SML-8}" y="{y+3:.1f}" class="axl" text-anchor="end">{t:,.0f}</text>')
-    # referencia y=x (100% de retención): recorta la recta al rectángulo visible
     t0, t1 = max(xmin, ymin), min(xmax, ymax)
     if t0 < t1:
         x0, y0 = fx(t0), fy(t0)
         x1, y1 = fx(t1), fy(t1)
         p.append(f'<line x1="{x0:.1f}" y1="{y0:.1f}" x2="{x1:.1f}" y2="{y1:.1f}" class="refline"/>')
         p.append(f'<text x="{x1-6:.1f}" y="{y1-6:.1f}" class="axl reflbl" '
-                 f'text-anchor="end">100% (mismos presentados)</text>')
+                 f'text-anchor="end">100% (asistieron todos los convocados)</text>')
     p.append(f'<text x="{(SML+SW-SMR)/2:.1f}" y="{SH-8}" class="axtitle" text-anchor="middle">'
-             f'presentaron examen en línea, 2026 (escala log)</text>')
+             f'convocados al examen de control (escala log)</text>')
     p.append(f'<text x="14" y="{(SMT+SH-SMB)/2:.1f}" class="axtitle" text-anchor="middle" '
              f'transform="rotate(-90 14 {(SMT+SH-SMB)/2:.1f})">presentaron en control (escala log)</text>')
 
     for o in offers:
-        cx, cy = fx(o["pres26"]), fy(max(o["presc"], 1))
+        cx, cy = fx(o["convocados"]), fy(max(o["presc"], 1))
         tip = {"carrera": nice_name(o["carrera"]), "campus": nice_name(o["campus"]),
-               "modalidad": o["modalidad"], "pres26": f'{o["pres26"]:.0f}',
+               "modalidad": o["modalidad"], "convocados": f'{o["convocados"]:.0f}',
                "presc": f'{o["presc"]:.0f}', "pct": f'{o["pct"]:.1f}'}
         p.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" class="pt" '
                  f'data-tip=\'{_html.escape(json.dumps(tip))}\'/>')
     p.append('</svg>')
     return "".join(p)
 
-
-# --------------------------------------------------------------------------- #
-# Ranking (barras) — las TOP_K con menor % de retención
-# --------------------------------------------------------------------------- #
 
 def build_barh(offers: list[dict], top_k: int = TOP_K) -> str:
     low = offers[:top_k]
@@ -184,15 +182,11 @@ def build_barh(offers: list[dict], top_k: int = TOP_K) -> str:
             f'<span class="barh-label">{esc(nice_name(o["carrera"]))}'
             f'<i>{esc(nice_name(o["campus"]))}{esc(modal)}</i></span>'
             f'<span class="barh-track"><span class="barh-fill" '
-            f'style="width:{o["pct"]:.1f}%"></span></span>'
+            f'style="width:{min(o["pct"],100):.1f}%"></span></span>'
             f'<span class="barh-val">{o["pct"]:.1f}%'
-            f'<i>{o["presc"]:.0f}/{o["pres26"]:.0f}</i></span></div>')
+            f'<i>{o["presc"]:.0f}/{o["convocados"]:.0f}</i></span></div>')
     return "".join(rows)
 
-
-# --------------------------------------------------------------------------- #
-# Tabla completa (ordenable + buscable)
-# --------------------------------------------------------------------------- #
 
 def build_table(offers: list[dict]) -> str:
     head = (
@@ -200,9 +194,10 @@ def build_table(offers: list[dict]) -> str:
         '<th class="c sortable sorted" data-key="carrera">Carrera<span class="arrow">▾</span></th>'
         '<th class="c sortable" data-key="campus">Campus<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="modalidad">Modalidad<span class="arrow">▾</span></th>'
-        '<th class="sortable" data-key="pres26">Presentaron 2026<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="pres26">Presentaron 2026 (total)<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="convocados">Convocados<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="presc">Presentaron control<span class="arrow">▾</span></th>'
-        '<th class="sortable" data-key="pct">% en control<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="pct">% asistencia<span class="arrow">▾</span></th>'
         '</tr>')
     rows = []
     for o in offers:
@@ -210,11 +205,13 @@ def build_table(offers: list[dict]) -> str:
         rows.append(
             f'<tr data-carrera="{esc(o["carrera"].lower())}" '
             f'data-campus="{esc(o["campus"].lower())}" data-modalidad="{esc(o["modalidad"])}" '
-            f'data-pres26="{o["pres26"]:.0f}" data-presc="{o["presc"]:.0f}" data-pct="{o["pct"]:.2f}">'
+            f'data-pres26="{o["pres26_total"]:.0f}" data-convocados="{o["convocados"]:.0f}" '
+            f'data-presc="{o["presc"]:.0f}" data-pct="{o["pct"]:.2f}">'
             f'<td class="c">{esc(nice_name(o["carrera"]))}</td>'
             f'<td class="c">{esc(nice_name(o["campus"]))}{esc(modal)}</td>'
             f'<td>{esc(o["modalidad"])}</td>'
-            f'<td>{o["pres26"]:,.0f}</td>'
+            f'<td>{o["pres26_total"]:,.0f}</td>'
+            f'<td>{o["convocados"]:,.0f}</td>'
             f'<td>{o["presc"]:,.0f}</td>'
             f'<td class="hl">{o["pct"]:.1f}%</td></tr>')
     return (f'<table class="tbl" id="tblPres"><thead>{head}</thead>'
@@ -310,8 +307,8 @@ def build_inner(offers: list[dict], summary: dict) -> str:
       var d=JSON.parse(c.dataset.tip);
       tip.innerHTML='<b>'+d.carrera+'</b><br>'+d.campus
         +(d.modalidad!=='escolarizado'?' · '+d.modalidad:'')
-        +'<br>Presentaron 2026: '+d.pres26+'<br>Presentaron control: '+d.presc
-        +'<br>% en control: <b>'+d.pct+'%</b>';
+        +'<br>Convocados: '+d.convocados+'<br>Presentaron control: '+d.presc
+        +'<br>% asistencia: <b>'+d.pct+'%</b>';
       tip.style.opacity=1;
       var x=e.clientX+14,y=e.clientY+14;
       if(x+250>innerWidth)x=e.clientX-260; tip.style.left=x+'px'; tip.style.top=y+'px';
@@ -341,7 +338,7 @@ def build_inner(offers: list[dict], summary: dict) -> str:
 
   var sortState={key:'pct',dir:1};
   function sortBy(key,dir){
-    var numeric=['pres26','presc','pct'];
+    var numeric=['pres26','convocados','presc','pct'];
     rows.sort(function(a,b){
       var av=a.dataset[key],bv=b.dataset[key];
       if(numeric.indexOf(key)>-1){ av=+av; bv=+bv; }
@@ -366,48 +363,50 @@ def build_inner(offers: list[dict], summary: dict) -> str:
 <div class="viz-root" data-palette="{CTRL_LIGHT}">
   <h1>¿Dónde se presentó menos gente al control? · UNAM</h1>
   <p class="sub">Compara, por carrera-campus, cuántos aspirantes
-  <b>presentaron</b> el examen en línea de 2026 contra cuántos presentaron
-  el <b style="color:var(--ctrl)">examen de control presencial</b>. Es
-  participación (quién se apareció), no resultado — para eso ver
-  "Control presencial vs. 2026 en línea".</p>
+  <b>presentaron</b> el examen de control presencial contra cuántos fueron
+  <b>convocados</b> a presentarlo. <b>No todos los que presentaron el examen
+  en línea de 2026 fueron convocados</b> — solo quienes alcanzaron el mínimo
+  de 2026 o el histórico más bajo de 2021–2025 (el que fuera menor), el
+  mismo criterio de "Examen de control: ¿a quién convocar?".</p>
   <p class="method"><b>Método:</b> {summary['n']} ofertas con ≥{MIN_N}
-  presentados en 2026 y dato de control. "% en control" = presentaron
-  control ÷ presentaron 2026.</p>
-  <div class="disclaimer">Nota: este análisis es una interpretación propia,
-  no información oficial de la UNAM ni de la Comisión Técnica. Es
-  descriptivo — no identifica aspirantes ni establece causas.</div>
+  convocados y dato de presentaron en control. "% asistencia" = presentaron
+  control ÷ convocados (no ÷ total que presentó en 2026).</p>
+  <div class="disclaimer">Nota: "convocados" es una interpretación propia del
+  criterio de la Comisión Técnica, no la lista oficial de convocados de la
+  UNAM — por eso algunos porcentajes superan 100% (más gente se presentó que
+  la que este criterio habría convocado). Es descriptivo — no identifica
+  aspirantes ni establece causas.</div>
   <div class="headline">
-    De <b>{summary['total26']:,}</b> aspirantes que presentaron en 2026 (en
-    estas {summary['n']} ofertas), solo <b>{summary['totalc']:,}</b> volvieron
-    a presentarse en el control — <b>{summary['overall_pct']:.1f}%</b> en
-    conjunto (mediana por oferta: {summary['median_pct']:.1f}%). Varía mucho:
-    <b>{summary['n_bajo']}</b> ofertas tuvieron menos del 20% de participación,
-    <b>{summary['n_medio']}</b> entre 20% y 50%, y <b>{summary['n_alto']}</b>
-    igual o más del 50%.
+    De <b>{summary['total_conv']:,}</b> aspirantes convocados (en estas
+    {summary['n']} ofertas), <b>{summary['total_presc']:,}</b> presentaron el
+    control — <b>{summary['overall_pct']:.1f}%</b> en conjunto (mediana por
+    oferta: {summary['median_pct']:.1f}%). <b>{summary['n_bajo']}</b> ofertas
+    tuvieron menos del 50% de asistencia, <b>{summary['n_medio']}</b> entre
+    50% y 75%, y <b>{summary['n_alto']}</b> el 75% o más.
   </div>
-  <h2>Presentaron 2026 vs. presentaron control (cada punto, una oferta)</h2>
+  <h2>Convocados vs. presentaron control (cada punto, una oferta)</h2>
   <div class="chart-wrap">{scatter}</div>
-  <h2>Las {TOP_K} ofertas con menor % de participación en el control</h2>
+  <h2>Las {TOP_K} ofertas con menor % de asistencia</h2>
   <div class="barh-wrap">{barh}</div>
-  <h2>Tabla completa (ordenada de menor a mayor % en control)</h2>
+  <h2>Tabla completa (ordenada de menor a mayor % de asistencia)</h2>
   <div class="controls">
     <input id="searchBoxP" class="search" type="text"
       placeholder="Buscar carrera, campus o modalidad…">
     <span id="rowCountP" class="count"></span>
   </div>
   <div class="tbl-wrap">{table}</div>
-  <p class="note">Fuente: resultados y metadata DGAE-UNAM 2021–2026 (campo
-  Presentaron Examen) y `metadata_control_2026.csv`
-  (`src/scrape_control.py`, examen de control presencial). Escala logarítmica
-  en el scatter: rangos muy distintos entre ofertas grandes y chicas.
-  Análisis descriptivo.</p>
+  <p class="note">Fuente: `examen_control.csv` (convocados según el criterio
+  de la Comisión Técnica) y `metadata_control_2026.csv`
+  (`src/scrape_control.py`, presentaron en el control). "Presentaron 2026
+  (total)" se muestra solo como contexto — NO es el denominador del %.
+  Escala logarítmica en el scatter. Análisis descriptivo.</p>
   {js}
 </div>"""
 
 
 def _standalone(inner: str) -> str:
     return ("<!doctype html><html lang=es><head><meta charset=utf-8>"
-            "<title>Presentaron: 2026 vs Control</title></head>"
+            "<title>Presentaron: convocados vs Control</title></head>"
             "<body style='margin:0'>" + inner + "</body></html>")
 
 
@@ -415,9 +414,9 @@ def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     offers, summary = load()
     print("resumen:", summary)
-    print("Top 10 con menor % en control:")
+    print("Top 10 con menor % de asistencia:")
     for o in offers[:10]:
-        print(f"  {o['pct']:5.1f}%  {o['presc']:.0f}/{o['pres26']:.0f}  "
+        print(f"  {o['pct']:5.1f}%  {o['presc']:.0f}/{o['convocados']:.0f}  "
               f"{o['carrera'][:30]} - {o['campus'][:22]} [{o['modalidad']}]")
 
     pd.DataFrame(offers).to_csv(OUT_DIR / "presentaron_control.csv", index=False, encoding="utf-8")
