@@ -27,6 +27,7 @@ import comparativa_estables as m_estables  # noqa: E402
 import examen_control as m_examen          # noqa: E402
 import examen_control_resultados as m_ctrlres  # noqa: E402
 import minimo_ingreso as m_min             # noqa: E402
+import minimo_ingreso_control as m_minctrl # noqa: E402
 import top20_medianas as m_top20           # noqa: E402
 
 REPO_URL = "https://github.com/jmtoral/admisiones_unam"
@@ -63,10 +64,14 @@ PAGES = [
          desc="Por carrera-campus (todas, sin filtro de tamaño): a cuántos aspirantes "
               "de 2026 convocar según el criterio de la Comisión Técnica.",
          thumb="examen_control.png"),
-    dict(slug="control-resultados", title="2026 en línea vs. Control",
+    dict(slug="control-resultados", title="Control presencial vs. 2026 en línea",
          desc="Ya con resultados del examen de control presencial: medianas por "
               "carrera-campus, comparadas contra 2026 y contra 2021-2025.",
          thumb="examen_control_resultados.png"),
+    dict(slug="minimo-control", title="Puntaje mínimo: la línea sigue al Control",
+         desc="El puntaje mínimo de ingreso 2021-2026, extendido con el examen de "
+              "control como una posición más; el tamaño del punto es el número de admitidos.",
+         thumb="minimo_ingreso_control.png"),
 ]
 
 
@@ -82,6 +87,7 @@ def build_inners() -> dict[str, str]:
         "casi-cero": m_ccero.build_inner(m_ccero.load()),
         "brecha": m_brecha.build_inner(m_brecha.load()),
         "minimo": m_min.build_inner(o_m, s_m),
+        "minimo-control": m_minctrl.build_inner(*m_minctrl.load()),
         "top20": m_top20.build_inner(m_top20.load_top()),
         "examen-control": m_examen.build_inner(*m_examen.load()),
         "control-resultados": m_ctrlres.build_inner(*m_ctrlres.load(), top_k=50),

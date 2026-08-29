@@ -691,11 +691,18 @@ mejoras").
     bajo 2021-2025); las 220 ofertas, sin filtro de tamaño.
   - `examen_control_resultados.py` — con los resultados YA publicados del
     examen de control (`src/scrape_control.py`): compara, por
-    carrera-campus, la mediana de aciertos en línea (2026), en control y
-    la histórica (2021-2025). La mediana en línea estaba +15 puntos sobre
-    la histórica; la del control, +6 — pero varía mucho entre ofertas.
-    Médico Cirujano-Facultad de Medicina, la carrera insignia del resto de
-    este análisis, quedó de las más alejadas de su histórica (81→77 vs. 57).
+    carrera-campus, la mediana de aciertos en control, en línea (2026) y
+    la histórica (2021-2025), más la distancia de Wasserstein entre control
+    y línea. La mediana del control quedó +6 puntos sobre la histórica; la
+    de 2026 en línea, +15. Médico Cirujano-Facultad de Medicina, la carrera
+    insignia del resto de este análisis, quedó de las más alejadas de su
+    histórica (control 77 vs. histórica 57).
+  - `minimo_ingreso_control.py` — extiende `minimo_ingreso.py`: agrega el
+    examen de control como una 7a posición en la trayectoria del puntaje
+    mínimo de cada oferta (el salto 2025→2026 sigue con un tramo
+    2026→Control), con el tamaño de cada punto representando el número de
+    admitidos en esa fase. El cambio medio de 2026 a control fue de
+    -25 puntos en las 50 ofertas con mayor incremento 2025→2026.
 
 ### Sitio (GitHub Pages)
 
