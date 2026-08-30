@@ -1,22 +1,27 @@
 """¿Dónde se presentó menos gente al control? · Asistencia de convocados.
 
 Compara, por carrera-campus, cuántos aspirantes PRESENTARON el examen de
-control presencial (`src/scrape_control.py`) contra cuántos fueron
-CONVOCADOS a presentarlo — no contra el total que presentó el examen en
-línea de 2026.
+control presencial (`src/scrape_control.py`) contra cuántas PERSONAS
+FUERON CONVOCADAS a presentarlo — no contra el total que presentó el
+examen en línea de 2026.
 
 Importante: no todos los que presentaron en 2026 fueron convocados al
 control, solo quienes alcanzaron el mínimo (el de 2026 o el histórico más
 bajo de 2021-2025, el que fuera menor) — el mismo criterio de la Comisión
-Técnica ya calculado en `examen_control.py`. Usar el total de 2026 como
-denominador (como hacía una versión anterior de este análisis) subestima
-la asistencia real: p. ej. Médico Cirujano-Facultad de Medicina parecía
-tener 8% de "participación" contra el total de 2026, pero 65% contra sus
-1,701 convocados reales — justo la mediana, nada extremo.
+Técnica ya calculado en `examen_control.py` (es una ESTIMACIÓN propia, no
+la lista oficial; de ahí que algunos % de asistencia superen 100%). Usar
+el total de 2026 como denominador (como hacía una versión anterior de este
+análisis) subestima la asistencia real: p. ej. Médico Cirujano-Facultad de
+Medicina parecía tener 8% de "participación" contra el total de 2026, pero
+65% contra sus 1,701 convocados reales — justo la mediana, nada extremo.
 
-Unidad = carrera + campus + modalidad. Se requieren ≥MIN_N convocados
-(evita que ofertas con un puñado de convocados generen porcentajes
-ruidosos). Análisis descriptivo.
+También incluye una segunda comparación: entre quienes SÍ presentaron
+examen, ¿qué % fue admitido en 2026 vs. en el control? (más alta en
+control: el grupo de convocados ya viene preseleccionado).
+
+Unidad = carrera + campus + modalidad. Se requieren ≥MIN_N personas
+convocadas (evita que ofertas con un puñado de convocados generen
+porcentajes ruidosos). Análisis descriptivo.
 
 Uso:  python analysis/presentaron_control.py
 Salidas en analysis/output/: presentaron_control.html/.png/_dark.png + .csv
@@ -75,8 +80,9 @@ def load():
 
     mc = pd.read_csv(SRC_CONTROL, dtype=str, keep_default_na=False, na_filter=False)
     mc["presc"] = pd.to_numeric(mc["presentaron_examen"], errors="coerce")
+    mc["selc"] = pd.to_numeric(mc["seleccionados"], errors="coerce")
     mc = _canonicalize_control(mc)
-    mc = mc[mc["presc"].notna()][["carrera", "campus", "modalidad", "presc"]]
+    mc = mc[mc["presc"].notna()][["carrera", "campus", "modalidad", "presc", "selc"]]
 
     merged = df_ec.merge(mc, on=["carrera", "campus", "modalidad"], how="inner")
     merged = merged[merged["convocados_examen_control"] >= MIN_N]
@@ -85,17 +91,27 @@ def load():
     for row in merged.itertuples():
         conv = float(row.convocados_examen_control)
         presc = float(row.presc)
+        pres26 = float(row.presentaron_2026)
+        sel26 = float(row.seleccionados_2026) if not np.isnan(row.seleccionados_2026) else 0.0
+        selc = float(row.selc) if not np.isnan(row.selc) else 0.0
         offers.append({
             "carrera": row.carrera, "campus": row.campus, "modalidad": row.modalidad,
-            "pres26_total": float(row.presentaron_2026), "convocados": conv, "presc": presc,
+            "pres26_total": pres26, "convocados": conv, "presc": presc,
             "pct": presc / conv * 100 if conv else 0.0,
+            "sel26": sel26, "selc": selc,
+            "pct_admit_2026": sel26 / pres26 * 100 if pres26 else 0.0,
+            "pct_admit_control": selc / presc * 100 if presc else 0.0,
             "umbral_final": int(row.umbral_final), "fuente_umbral": row.fuente_umbral,
         })
     offers.sort(key=lambda o: o["pct"])
 
     total_conv = sum(o["convocados"] for o in offers)
     total_presc = sum(o["presc"] for o in offers)
+    total_pres26 = sum(o["pres26_total"] for o in offers)
+    total_sel26 = sum(o["sel26"] for o in offers)
+    total_selc = sum(o["selc"] for o in offers)
     pcts = np.array([o["pct"] for o in offers])
+    admit_ok = [o for o in offers if o["pres26_total"] and o["presc"]]
     summary = {
         "n": len(offers),
         "total_conv": int(total_conv),
@@ -105,6 +121,13 @@ def load():
         "n_bajo": int((pcts < 50).sum()),
         "n_medio": int(((pcts >= 50) & (pcts < 75)).sum()),
         "n_alto": int((pcts >= 75).sum()),
+        "n_admit": len(admit_ok),
+        "overall_admit_2026": total_sel26 / total_pres26 * 100 if total_pres26 else 0.0,
+        "overall_admit_control": total_selc / total_presc * 100 if total_presc else 0.0,
+        "median_admit_2026": float(np.median([o["pct_admit_2026"] for o in admit_ok])) if admit_ok else 0.0,
+        "median_admit_control": float(np.median([o["pct_admit_control"] for o in admit_ok])) if admit_ok else 0.0,
+        "n_admit_sube": sum(1 for o in admit_ok if o["pct_admit_control"] > o["pct_admit_2026"]),
+        "n_admit_baja": sum(1 for o in admit_ok if o["pct_admit_control"] < o["pct_admit_2026"]),
     }
     return offers, summary
 
@@ -157,7 +180,7 @@ def build_scatter(offers: list[dict]) -> str:
         p.append(f'<text x="{x1-6:.1f}" y="{y1-6:.1f}" class="axl reflbl" '
                  f'text-anchor="end">100% (asistieron todos los convocados)</text>')
     p.append(f'<text x="{(SML+SW-SMR)/2:.1f}" y="{SH-8}" class="axtitle" text-anchor="middle">'
-             f'convocados al examen de control (escala log)</text>')
+             f'personas convocadas al examen de control (escala log)</text>')
     p.append(f'<text x="14" y="{(SMT+SH-SMB)/2:.1f}" class="axtitle" text-anchor="middle" '
              f'transform="rotate(-90 14 {(SMT+SH-SMB)/2:.1f})">presentaron en control (escala log)</text>')
 
@@ -168,6 +191,45 @@ def build_scatter(offers: list[dict]) -> str:
                "presc": f'{o["presc"]:.0f}', "pct": f'{o["pct"]:.1f}'}
         p.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" class="pt" '
                  f'data-tip=\'{_html.escape(json.dumps(tip))}\'/>')
+    p.append('</svg>')
+    return "".join(p)
+
+
+def build_admit_scatter(offers: list[dict]) -> str:
+    """% admitidos entre quienes presentaron: 2026 (x) vs. control (y).
+    Escala lineal 0-100 (son porcentajes), con referencia y=x."""
+    pts = [o for o in offers if o["pres26_total"] and o["presc"]]
+
+    def fx(v):
+        return SML + v / 100 * (SW - SML - SMR)
+
+    def fy(v):
+        return (SH - SMB) - v / 100 * (SH - SMB - SMT)
+
+    p = [f'<svg viewBox="0 0 {SW} {SH}" width="100%" preserveAspectRatio="xMidYMid meet">']
+    for t in range(0, 101, 20):
+        x, y = fx(t), fy(t)
+        p.append(f'<line x1="{x:.1f}" y1="{SMT}" x2="{x:.1f}" y2="{SH-SMB}" class="gridl"/>')
+        p.append(f'<text x="{x:.1f}" y="{SH-SMB+16}" class="axl" text-anchor="middle">{t}%</text>')
+        p.append(f'<line x1="{SML}" y1="{y:.1f}" x2="{SW-SMR}" y2="{y:.1f}" class="gridl"/>')
+        p.append(f'<text x="{SML-8}" y="{y+3:.1f}" class="axl" text-anchor="end">{t}%</text>')
+    p.append(f'<line x1="{fx(0):.1f}" y1="{fy(0):.1f}" x2="{fx(100):.1f}" y2="{fy(100):.1f}" class="refline"/>')
+    p.append(f'<text x="{fx(100)-6:.1f}" y="{fy(100)-6:.1f}" class="axl reflbl" '
+             f'text-anchor="end">misma tasa de admisión</text>')
+    p.append(f'<text x="{(SML+SW-SMR)/2:.1f}" y="{SH-8}" class="axtitle" text-anchor="middle">'
+             f'% admitidos entre quienes presentaron en línea, 2026</text>')
+    p.append(f'<text x="14" y="{(SMT+SH-SMB)/2:.1f}" class="axtitle" text-anchor="middle" '
+             f'transform="rotate(-90 14 {(SMT+SH-SMB)/2:.1f})">% admitidos entre quienes presentaron control</text>')
+
+    for o in pts:
+        cx, cy = fx(min(o["pct_admit_2026"], 100)), fy(min(o["pct_admit_control"], 100))
+        tip = {"carrera": nice_name(o["carrera"]), "campus": nice_name(o["campus"]),
+               "modalidad": o["modalidad"],
+               "admit26": f'{o["pct_admit_2026"]:.1f}', "sel26": f'{o["sel26"]:.0f}',
+               "pres26": f'{o["pres26_total"]:.0f}', "admitc": f'{o["pct_admit_control"]:.1f}',
+               "selc": f'{o["selc"]:.0f}', "presc": f'{o["presc"]:.0f}'}
+        p.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="4" class="pt2" '
+                 f'data-tip2=\'{_html.escape(json.dumps(tip))}\'/>')
     p.append('</svg>')
     return "".join(p)
 
@@ -195,7 +257,7 @@ def build_table(offers: list[dict]) -> str:
         '<th class="c sortable" data-key="campus">Campus<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="modalidad">Modalidad<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="pres26">Presentaron 2026 (total)<span class="arrow">▾</span></th>'
-        '<th class="sortable" data-key="convocados">Convocados<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="convocados">Personas convocadas<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="presc">Presentaron control<span class="arrow">▾</span></th>'
         '<th class="sortable" data-key="pct">% asistencia<span class="arrow">▾</span></th>'
         '</tr>')
@@ -223,6 +285,7 @@ def build_inner(offers: list[dict], summary: dict) -> str:
     scatter = build_scatter(offers)
     barh = build_barh(ordered, TOP_K)
     table = build_table(ordered)
+    admit_scatter = build_admit_scatter(offers)
 
     css = f"""
 <style>
@@ -255,8 +318,9 @@ def build_inner(offers: list[dict], summary: dict) -> str:
 .axtitle {{ fill:var(--text-secondary); font-size:11px; }}
 .refline {{ stroke:var(--axis); stroke-width:1.3; stroke-dasharray:4 3; }}
 .reflbl {{ font-size:9.5px; }}
-.pt {{ fill:var(--ctrl); fill-opacity:.55; stroke:var(--surface-1); stroke-width:.6; cursor:pointer; }}
-.pt:hover {{ fill-opacity:.9; }}
+.pt, .pt2 {{ fill:var(--ctrl); fill-opacity:.55; stroke:var(--surface-1); stroke-width:.6; cursor:pointer; }}
+.pt:hover, .pt2:hover {{ fill-opacity:.9; }}
+.disclaimer a {{ color:var(--ctrl); }}
 .tip {{ position:fixed; pointer-events:none; z-index:9; background:var(--surface-1);
   color:var(--text-primary); border:1px solid var(--border); border-radius:8px;
   padding:8px 10px; font-size:11.5px; box-shadow:0 4px 14px rgba(0,0,0,.18);
@@ -307,8 +371,21 @@ def build_inner(offers: list[dict], summary: dict) -> str:
       var d=JSON.parse(c.dataset.tip);
       tip.innerHTML='<b>'+d.carrera+'</b><br>'+d.campus
         +(d.modalidad!=='escolarizado'?' · '+d.modalidad:'')
-        +'<br>Convocados: '+d.convocados+'<br>Presentaron control: '+d.presc
+        +'<br>Personas convocadas: '+d.convocados+'<br>Presentaron control: '+d.presc
         +'<br>% asistencia: <b>'+d.pct+'%</b>';
+      tip.style.opacity=1;
+      var x=e.clientX+14,y=e.clientY+14;
+      if(x+250>innerWidth)x=e.clientX-260; tip.style.left=x+'px'; tip.style.top=y+'px';
+    });
+    c.addEventListener('mouseleave',function(){tip.style.opacity=0;});
+  });
+  root.querySelectorAll('.pt2').forEach(function(c){
+    c.addEventListener('mousemove',function(e){
+      var d=JSON.parse(c.dataset.tip2);
+      tip.innerHTML='<b>'+d.carrera+'</b><br>'+d.campus
+        +(d.modalidad!=='escolarizado'?' · '+d.modalidad:'')
+        +'<br>2026: <b>'+d.admit26+'%</b> admitidos ('+d.sel26+' de '+d.pres26+' presentados)'
+        +'<br>Control: <b>'+d.admitc+'%</b> admitidos ('+d.selc+' de '+d.presc+' presentados)';
       tip.style.opacity=1;
       var x=e.clientX+14,y=e.clientY+14;
       if(x+250>innerWidth)x=e.clientX-260; tip.style.left=x+'px'; tip.style.top=y+'px';
@@ -363,28 +440,31 @@ def build_inner(offers: list[dict], summary: dict) -> str:
 <div class="viz-root" data-palette="{CTRL_LIGHT}">
   <h1>¿Dónde se presentó menos gente al control? · UNAM</h1>
   <p class="sub">Compara, por carrera-campus, cuántos aspirantes
-  <b>presentaron</b> el examen de control presencial contra cuántos fueron
-  <b>convocados</b> a presentarlo. <b>No todos los que presentaron el examen
-  en línea de 2026 fueron convocados</b> — solo quienes alcanzaron el mínimo
-  de 2026 o el histórico más bajo de 2021–2025 (el que fuera menor), el
-  mismo criterio de "Examen de control: ¿a quién convocar?".</p>
+  <b>presentaron</b> el examen de control presencial contra cuántas
+  <b>personas fueron convocadas</b> a presentarlo. <b>No todos los que
+  presentaron el examen en línea de 2026 fueron convocados</b> — solo
+  quienes alcanzaron el mínimo de 2026 o el histórico más bajo de
+  2021–2025 (el que fuera menor), el mismo criterio de
+  <a href="examen-control.html">"Examen de control: ¿a quién convocar?"</a>.</p>
   <p class="method"><b>Método:</b> {summary['n']} ofertas con ≥{MIN_N}
-  convocados y dato de presentaron en control. "% asistencia" = presentaron
-  control ÷ convocados (no ÷ total que presentó en 2026).</p>
-  <div class="disclaimer">Nota: "convocados" es una interpretación propia del
-  criterio de la Comisión Técnica, no la lista oficial de convocados de la
-  UNAM — por eso algunos porcentajes superan 100% (más gente se presentó que
-  la que este criterio habría convocado). Es descriptivo — no identifica
-  aspirantes ni establece causas.</div>
+  personas convocadas y dato de presentaron en control. "% asistencia" =
+  presentaron control ÷ personas convocadas (no ÷ total que presentó en 2026).</p>
+  <div class="disclaimer">Nota: "personas convocadas" es una <b>estimación
+  propia</b> con base en el mínimo histórico (ver la metodología en
+  <a href="examen-control.html">"Examen de control: ¿a quién convocar?"</a>),
+  no la lista oficial de convocados de la UNAM — por eso algunos porcentajes
+  de asistencia superan 100% (se presentó más gente de la que esta
+  estimación habría convocado). Es descriptivo — no identifica aspirantes
+  ni establece causas.</div>
   <div class="headline">
-    De <b>{summary['total_conv']:,}</b> aspirantes convocados (en estas
+    De <b>{summary['total_conv']:,}</b> personas convocadas (en estas
     {summary['n']} ofertas), <b>{summary['total_presc']:,}</b> presentaron el
     control — <b>{summary['overall_pct']:.1f}%</b> en conjunto (mediana por
     oferta: {summary['median_pct']:.1f}%). <b>{summary['n_bajo']}</b> ofertas
     tuvieron menos del 50% de asistencia, <b>{summary['n_medio']}</b> entre
     50% y 75%, y <b>{summary['n_alto']}</b> el 75% o más.
   </div>
-  <h2>Convocados vs. presentaron control (cada punto, una oferta)</h2>
+  <h2>Personas convocadas vs. presentaron control (cada punto, una oferta)</h2>
   <div class="chart-wrap">{scatter}</div>
   <h2>Las {TOP_K} ofertas con menor % de asistencia</h2>
   <div class="barh-wrap">{barh}</div>
@@ -395,11 +475,27 @@ def build_inner(offers: list[dict], summary: dict) -> str:
     <span id="rowCountP" class="count"></span>
   </div>
   <div class="tbl-wrap">{table}</div>
-  <p class="note">Fuente: `examen_control.csv` (convocados según el criterio
-  de la Comisión Técnica) y `metadata_control_2026.csv`
-  (`src/scrape_control.py`, presentaron en el control). "Presentaron 2026
-  (total)" se muestra solo como contexto — NO es el denominador del %.
-  Escala logarítmica en el scatter. Análisis descriptivo.</p>
+  <h2>% de admitidos entre quienes presentaron: 2026 vs. control</h2>
+  <p class="method">Entre quienes SÍ presentaron examen (no entre
+  convocados), ¿qué proporción fue admitida en cada fase? Un punto por
+  encima de la diagonal significa que la tasa de admisión subió en el
+  control respecto a 2026; por debajo, que bajó.</p>
+  <div class="headline">
+    Entre quienes presentaron, <b>{summary['overall_admit_2026']:.1f}%</b>
+    fue admitido en 2026 (mediana por oferta: {summary['median_admit_2026']:.1f}%)
+    y <b class="c">{summary['overall_admit_control']:.1f}%</b> en el control
+    (mediana: {summary['median_admit_control']:.1f}%), sobre
+    {summary['n_admit']} ofertas con datos en ambas fases. La tasa de
+    admisión subió en <b>{summary['n_admit_sube']}</b> ofertas y bajó en
+    <b>{summary['n_admit_baja']}</b>.
+  </div>
+  <div class="chart-wrap">{admit_scatter}</div>
+  <p class="note">Fuente: `examen_control.csv` (personas convocadas según la
+  estimación propia del criterio de la Comisión Técnica) y
+  `metadata_control_2026.csv` (`src/scrape_control.py`, presentaron y
+  admitidos en el control). "Presentaron 2026 (total)" se muestra solo como
+  contexto — NO es el denominador del % de asistencia. Escalas logarítmica
+  (primer scatter) y lineal 0-100% (segundo). Análisis descriptivo.</p>
   {js}
 </div>"""
 
