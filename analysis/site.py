@@ -30,6 +30,7 @@ import minimo_ingreso as m_min             # noqa: E402
 import minimo_ingreso_control as m_minctrl # noqa: E402
 import presentaron_control as m_pres       # noqa: E402
 import top20_medianas as m_top20           # noqa: E402
+import trayectoria_individual as m_tray    # noqa: E402
 
 REPO_URL = "https://github.com/jmtoral/admisiones_unam"
 FAVICON = ("data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' "
@@ -77,6 +78,10 @@ PAGES = [
          desc="Participación: de quienes fueron convocados al control (no el total de "
               "2026), 64.7% se presentó — por carrera-campus, quién asistió más y menos.",
          thumb="presentaron_control.png"),
+    dict(slug="trayectoria-individual", title="La misma persona: en línea vs. control",
+         desc="No distribuciones, personas: pareadas por comprobante, 95.4% sacó menos "
+              "aciertos en el control que en línea (mediana -30).",
+         thumb="trayectoria_individual.png"),
 ]
 
 
@@ -99,6 +104,7 @@ def build_inners() -> dict[str, str]:
         "examen-control": m_examen.build_inner(*m_examen.load()),
         "control-resultados": m_ctrlres.build_inner(o_cr, s_cr, top_k=len(o_cr)),
         "presentaron-control": m_pres.build_inner(*m_pres.load()),
+        "trayectoria-individual": m_tray.build_inner(*m_tray.load()),
     }
 
 

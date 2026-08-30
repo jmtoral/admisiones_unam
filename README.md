@@ -714,6 +714,16 @@ mejoras").
     (65.3%) — nada extremo. Segunda sección: entre quienes SÍ presentaron,
     la tasa de admisión subió de 14.2% (2026) a 55.8% (control) — el grupo
     de convocados ya viene preseleccionado.
+  - `trayectoria_individual.py` — a diferencia de todo lo anterior (que
+    compara DISTRIBUCIONES por oferta, misma forma, distinta gente), este
+    parea a la MISMA PERSONA entre 2026 en línea y el control por
+    `numero_comprobante` (99.6% de coincidencia, 36,719 de 36,875 con
+    aciertos válido). Mapa de calor aciertos-en-línea vs. aciertos-en-control,
+    histograma del cambio individual y tabla por oferta (≥30 pareadas).
+    95.4% de las personas sacó MENOS aciertos en el control que en línea
+    (mediana -30); consistente en las 167 ofertas con muestra suficiente —
+    ninguna tuvo mediana positiva (rango -50 a -3). Reporta solo en
+    agregado, nunca listas de personas.
 
 ### Sitio (GitHub Pages)
 
