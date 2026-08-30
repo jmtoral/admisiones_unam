@@ -124,6 +124,33 @@ SW, SH = 620, 480
 SML, SMR, SMT, SMB = 54, 16, 16, 44
 BIN = 5
 EDGES = np.arange(0, 125, BIN)
+XLABEL = "aciertos en línea, 2026 (misma persona)"
+YLABEL = "aciertos en control (misma persona)"
+
+
+def _fx(v: float) -> float:
+    return SML + v / 120 * (SW - SML - SMR)
+
+
+def _fy(v: float) -> float:
+    return (SH - SMB) - v / 120 * (SH - SMB - SMT)
+
+
+def _axes_svg() -> list[str]:
+    p = []
+    for t in range(0, 121, 20):
+        x, y = _fx(t), _fy(t)
+        p.append(f'<line x1="{x:.1f}" y1="{SMT}" x2="{x:.1f}" y2="{SH-SMB}" class="gridl"/>')
+        p.append(f'<text x="{x:.1f}" y="{SH-SMB+16}" class="axl" text-anchor="middle">{t}</text>')
+        p.append(f'<line x1="{SML}" y1="{y:.1f}" x2="{SW-SMR}" y2="{y:.1f}" class="gridl"/>')
+        p.append(f'<text x="{SML-8}" y="{y+3:.1f}" class="axl" text-anchor="end">{t}</text>')
+    p.append(f'<line x1="{_fx(0):.1f}" y1="{_fy(0):.1f}" x2="{_fx(120):.1f}" y2="{_fy(120):.1f}" class="refline"/>')
+    p.append(f'<text x="{_fx(120)-6:.1f}" y="{_fy(120)-6:.1f}" class="axl reflbl" '
+             f'text-anchor="end">mismo puntaje</text>')
+    p.append(f'<text x="{(SML+SW-SMR)/2:.1f}" y="{SH-8}" class="axtitle" text-anchor="middle">{XLABEL}</text>')
+    p.append(f'<text x="14" y="{(SMT+SH-SMB)/2:.1f}" class="axtitle" text-anchor="middle" '
+             f'transform="rotate(-90 14 {(SMT+SH-SMB)/2:.1f})">{YLABEL}</text>')
+    return p
 
 
 def build_heatmap(pairs: pd.DataFrame) -> str:
@@ -131,14 +158,8 @@ def build_heatmap(pairs: pd.DataFrame) -> str:
     logH = np.log1p(H)
     vmax = logH.max() if logH.max() > 0 else 1.0
 
-    def fx(v):
-        return SML + v / 120 * (SW - SML - SMR)
-
-    def fy(v):
-        return (SH - SMB) - v / 120 * (SH - SMB - SMT)
-
-    cell_w = fx(BIN) - fx(0)
-    cell_h = fy(0) - fy(BIN)
+    cell_w = _fx(BIN) - _fx(0)
+    cell_h = _fy(0) - _fy(BIN)
 
     p = [f'<svg viewBox="0 0 {SW} {SH}" width="100%" preserveAspectRatio="xMidYMid meet">']
     n_bins = len(EDGES) - 1
@@ -148,28 +169,64 @@ def build_heatmap(pairs: pd.DataFrame) -> str:
             if cnt == 0:
                 continue
             x0, y0 = EDGES[i], EDGES[j]
-            px, py = fx(x0), fy(y0 + BIN)
+            px, py = _fx(x0), _fy(y0 + BIN)
             op = 0.08 + 0.87 * (logH[i, j] / vmax)
             tip = {"r26": f"{x0:.0f}–{x0+BIN:.0f}", "rctrl": f"{y0:.0f}–{y0+BIN:.0f}",
                    "n": f"{cnt:,}"}
             p.append(f'<rect x="{px:.1f}" y="{py:.1f}" width="{cell_w:.1f}" height="{cell_h:.1f}" '
                      f'class="cell" style="fill-opacity:{op:.3f}" '
                      f'data-tip=\'{_html.escape(json.dumps(tip))}\'/>')
-    for t in range(0, 121, 20):
-        x, y = fx(t), fy(t)
-        p.append(f'<line x1="{x:.1f}" y1="{SMT}" x2="{x:.1f}" y2="{SH-SMB}" class="gridl"/>')
-        p.append(f'<text x="{x:.1f}" y="{SH-SMB+16}" class="axl" text-anchor="middle">{t}</text>')
-        p.append(f'<line x1="{SML}" y1="{y:.1f}" x2="{SW-SMR}" y2="{y:.1f}" class="gridl"/>')
-        p.append(f'<text x="{SML-8}" y="{y+3:.1f}" class="axl" text-anchor="end">{t}</text>')
-    p.append(f'<line x1="{fx(0):.1f}" y1="{fy(0):.1f}" x2="{fx(120):.1f}" y2="{fy(120):.1f}" class="refline"/>')
-    p.append(f'<text x="{fx(120)-6:.1f}" y="{fy(120)-6:.1f}" class="axl reflbl" '
-             f'text-anchor="end">mismo puntaje</text>')
-    p.append(f'<text x="{(SML+SW-SMR)/2:.1f}" y="{SH-8}" class="axtitle" text-anchor="middle">'
-             f'aciertos en línea, 2026 (misma persona)</text>')
-    p.append(f'<text x="14" y="{(SMT+SH-SMB)/2:.1f}" class="axtitle" text-anchor="middle" '
-             f'transform="rotate(-90 14 {(SMT+SH-SMB)/2:.1f})">aciertos en control (misma persona)</text>')
+    p.extend(_axes_svg())
     p.append('</svg>')
     return "".join(p)
+
+
+def build_point_scatter(pairs: pd.DataFrame) -> str:
+    """Un punto por persona (sin folio, sin ningún identificador) — dispersión
+    aleatoria leve (±0.45 aciertos) solo para separar visualmente enteros
+    superpuestos; la densidad real la da la superposición de alfa en canvas."""
+    axes = "".join([f'<svg viewBox="0 0 {SW} {SH}" width="100%" height="100%" '
+                     'style="position:absolute;inset:0;pointer-events:none;">']
+                    + _axes_svg() + ['</svg>'])
+    left_pct = SML / SW * 100
+    top_pct = SMT / SH * 100
+    w_pct = (SW - SML - SMR) / SW * 100
+    h_pct = (SH - SMT - SMB) / SH * 100
+    xs = ",".join(str(v) for v in pairs["ac_26"].astype(int))
+    ys = ",".join(str(v) for v in pairs["ac_ctrl"].astype(int))
+    canvas = (f'<canvas id="ptCanvas" style="position:absolute;left:{left_pct:.3f}%;'
+              f'top:{top_pct:.3f}%;width:{w_pct:.3f}%;height:{h_pct:.3f}%;"></canvas>')
+    script = f"""<script>
+(function(){{
+  var XS=[{xs}], YS=[{ys}];
+  var canvas=document.getElementById('ptCanvas');
+  if(!canvas) return;
+  var ctx=canvas.getContext('2d');
+  var root=document.querySelector('.viz-root');
+  function col(){{ return (getComputedStyle(root).getPropertyValue('--ctrl')||'#2f6fb0').trim(); }}
+  function draw(){{
+    var rect=canvas.getBoundingClientRect();
+    var dpr=window.devicePixelRatio||1;
+    var w=Math.max(1,rect.width), h=Math.max(1,rect.height);
+    canvas.width=Math.round(w*dpr); canvas.height=Math.round(h*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,w,h);
+    ctx.fillStyle=col();
+    ctx.globalAlpha=0.08;
+    for(var i=0;i<XS.length;i++){{
+      var x=(XS[i]+(Math.random()-0.5)*0.9)/120*w;
+      var y=h-(YS[i]+(Math.random()-0.5)*0.9)/120*h;
+      ctx.beginPath(); ctx.arc(x,y,1.3,0,6.2832); ctx.fill();
+    }}
+  }}
+  draw();
+  if(window.ResizeObserver) new ResizeObserver(draw).observe(canvas);
+  new MutationObserver(draw).observe(document.documentElement,{{attributes:true,attributeFilter:['data-theme']}});
+  window.addEventListener('resize', draw);
+}})();
+</script>"""
+    return (f'<div class="scatter-wrap" style="position:relative;width:100%;'
+            f'aspect-ratio:{SW}/{SH};">{axes}{canvas}{script}</div>')
 
 
 # --------------------------------------------------------------------------- #
@@ -246,6 +303,7 @@ def build_table(by_oferta: list[dict]) -> str:
 
 def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict]) -> str:
     heatmap = build_heatmap(pairs)
+    point_scatter = build_point_scatter(pairs)
     delta_hist = build_delta_hist(pairs)
     table = build_table(by_oferta)
 
@@ -276,6 +334,10 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict]) -> st
 .disclaimer a {{ color:var(--ctrl); }}
 .chart-wrap {{ background:var(--surface-1); border:1px solid var(--border);
   border-radius:10px; padding:10px; margin-top:8px; position:relative; }}
+.grid-cmp {{ display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:8px; }}
+.grid-cmp .chart-wrap {{ margin-top:0; }}
+.mini {{ font-size:12.5px; color:var(--text-secondary); margin:0 0 4px; font-weight:600; }}
+@media (max-width:820px) {{ .grid-cmp {{ grid-template-columns:1fr; }} }}
 .gridl {{ stroke:var(--grid); stroke-width:1; }}
 .axis {{ stroke:var(--axis); stroke-width:1; }}
 .axl {{ fill:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; }}
@@ -406,8 +468,16 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict]) -> st
     consistente entre ofertas: de {len(by_oferta)} con muestra suficiente,
     ninguna tuvo una mediana positiva.
   </div>
-  <h2>Aciertos en línea vs. en control, misma persona (mapa de calor)</h2>
-  <div class="chart-wrap">{heatmap}</div>
+  <h2>Aciertos en línea vs. en control, misma persona</h2>
+  <p class="sub">Dos vistas del mismo pareo: agregada (bins de {BIN} aciertos) y a
+  nivel de punto (una marca por persona, con dispersión aleatoria leve para
+  separar enteros superpuestos — no se muestra ningún folio ni identificador).</p>
+  <div class="grid-cmp">
+    <div><p class="mini">Mapa de calor (agregado)</p>
+      <div class="chart-wrap">{heatmap}</div></div>
+    <div><p class="mini">Dispersión (un punto = una persona)</p>
+      <div class="chart-wrap">{point_scatter}</div></div>
+  </div>
   <h2>Cuánto cambió cada persona (control − en línea)</h2>
   <div class="chart-wrap">{delta_hist}</div>
   <h2>Por oferta (mediana del cambio individual)</h2>

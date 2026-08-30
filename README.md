@@ -718,7 +718,9 @@ mejoras").
     compara DISTRIBUCIONES por oferta, misma forma, distinta gente), este
     parea a la MISMA PERSONA entre 2026 en línea y el control por
     `numero_comprobante` (99.6% de coincidencia, 36,719 de 36,875 con
-    aciertos válido). Mapa de calor aciertos-en-línea vs. aciertos-en-control,
+    aciertos válido). Aciertos-en-línea vs. aciertos-en-control en dos
+    vistas lado a lado — mapa de calor agregado y dispersión a nivel de
+    punto (un punto por persona, sin folio ni identificador) — más un
     histograma del cambio individual y tabla por oferta (≥30 pareadas).
     95.4% de las personas sacó MENOS aciertos en el control que en línea
     (mediana -30); consistente en las 167 ofertas con muestra suficiente —
