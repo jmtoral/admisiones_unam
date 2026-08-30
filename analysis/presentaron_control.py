@@ -280,12 +280,50 @@ def build_table(offers: list[dict]) -> str:
             f'<tbody>{"".join(rows)}</tbody></table>')
 
 
+def build_admit_table(offers: list[dict]) -> str:
+    """Tabla de la sección "% de admitidos entre quienes presentaron"."""
+    pts = [o for o in offers if o["pres26_total"] and o["presc"]]
+    pts = sorted(pts, key=lambda o: o["pct_admit_control"] - o["pct_admit_2026"])
+    head = (
+        '<tr>'
+        '<th class="c sortable sorted" data-key="carrera">Carrera<span class="arrow">▾</span></th>'
+        '<th class="c sortable" data-key="campus">Campus<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="modalidad">Modalidad<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="pres26">Presentaron 2026<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="admit26">% admitidos 2026<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="presc">Presentaron control<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="admitc">% admitidos control<span class="arrow">▾</span></th>'
+        '<th class="sortable" data-key="diff">Diferencia (control − 2026)<span class="arrow">▾</span></th>'
+        '</tr>')
+    rows = []
+    for o in pts:
+        modal = "" if o["modalidad"] == "escolarizado" else f" · {o['modalidad']}"
+        diff = o["pct_admit_control"] - o["pct_admit_2026"]
+        rows.append(
+            f'<tr data-carrera="{esc(o["carrera"].lower())}" '
+            f'data-campus="{esc(o["campus"].lower())}" data-modalidad="{esc(o["modalidad"])}" '
+            f'data-pres26="{o["pres26_total"]:.0f}" data-admit26="{o["pct_admit_2026"]:.2f}" '
+            f'data-presc="{o["presc"]:.0f}" data-admitc="{o["pct_admit_control"]:.2f}" '
+            f'data-diff="{diff:.2f}">'
+            f'<td class="c">{esc(nice_name(o["carrera"]))}</td>'
+            f'<td class="c">{esc(nice_name(o["campus"]))}{esc(modal)}</td>'
+            f'<td>{esc(o["modalidad"])}</td>'
+            f'<td>{o["pres26_total"]:,.0f}</td>'
+            f'<td>{o["pct_admit_2026"]:.1f}%</td>'
+            f'<td>{o["presc"]:,.0f}</td>'
+            f'<td class="hl">{o["pct_admit_control"]:.1f}%</td>'
+            f'<td>{diff:+.1f} pp</td></tr>')
+    return (f'<table class="tbl" id="tblAdmit"><thead>{head}</thead>'
+            f'<tbody>{"".join(rows)}</tbody></table>')
+
+
 def build_inner(offers: list[dict], summary: dict) -> str:
     ordered = sorted(offers, key=lambda o: o["pct"])
     scatter = build_scatter(offers)
     barh = build_barh(ordered, TOP_K)
     table = build_table(ordered)
     admit_scatter = build_admit_scatter(offers)
+    admit_table = build_admit_table(offers)
 
     css = f"""
 <style>
@@ -371,8 +409,8 @@ def build_inner(offers: list[dict], summary: dict) -> str:
       var d=JSON.parse(c.dataset.tip);
       tip.innerHTML='<b>'+d.carrera+'</b><br>'+d.campus
         +(d.modalidad!=='escolarizado'?' · '+d.modalidad:'')
-        +'<br>Personas convocadas: '+d.convocados+'<br>Presentaron control: '+d.presc
-        +'<br>% asistencia: <b>'+d.pct+'%</b>';
+        +'<br>Personas convocadas: 100% ('+d.convocados+')'
+        +'<br>Presentaron control: <b>'+d.pct+'%</b> ('+d.presc+')';
       tip.style.opacity=1;
       var x=e.clientX+14,y=e.clientY+14;
       if(x+250>innerWidth)x=e.clientX-260; tip.style.left=x+'px'; tip.style.top=y+'px';
@@ -393,46 +431,52 @@ def build_inner(offers: list[dict], summary: dict) -> str:
     c.addEventListener('mouseleave',function(){tip.style.opacity=0;});
   });
 
-  var tbl=document.getElementById('tblPres');
-  var tbody=tbl.querySelector('tbody');
-  var rows=Array.prototype.slice.call(tbody.querySelectorAll('tr'));
-  var countEl=document.getElementById('rowCountP');
-  var searchEl=document.getElementById('searchBoxP');
+  function setupTable(tblId, countId, searchId, numericKeys, defaultKey, defaultDir){
+    var tbl=document.getElementById(tblId);
+    var tbody=tbl.querySelector('tbody');
+    var rows=Array.prototype.slice.call(tbody.querySelectorAll('tr'));
+    var countEl=document.getElementById(countId);
+    var searchEl=document.getElementById(searchId);
 
-  function applyFilter(){
-    var q=(searchEl.value||'').toLowerCase().trim();
-    var shown=0;
-    rows.forEach(function(tr){
-      var hit=!q || tr.dataset.carrera.indexOf(q)>-1 || tr.dataset.campus.indexOf(q)>-1
-        || tr.dataset.modalidad.toLowerCase().indexOf(q)>-1;
-      tr.style.display=hit?'':'none';
-      if(hit)shown++;
-    });
-    countEl.textContent='Mostrando '+shown+' de '+rows.length+' ofertas';
-  }
-  searchEl.addEventListener('input',applyFilter);
-  applyFilter();
+    function applyFilter(){
+      var q=(searchEl.value||'').toLowerCase().trim();
+      var shown=0;
+      rows.forEach(function(tr){
+        var hit=!q || tr.dataset.carrera.indexOf(q)>-1 || tr.dataset.campus.indexOf(q)>-1
+          || tr.dataset.modalidad.toLowerCase().indexOf(q)>-1;
+        tr.style.display=hit?'':'none';
+        if(hit)shown++;
+      });
+      countEl.textContent='Mostrando '+shown+' de '+rows.length+' ofertas';
+    }
+    searchEl.addEventListener('input',applyFilter);
+    applyFilter();
 
-  var sortState={key:'pct',dir:1};
-  function sortBy(key,dir){
-    var numeric=['pres26','convocados','presc','pct'];
-    rows.sort(function(a,b){
-      var av=a.dataset[key],bv=b.dataset[key];
-      if(numeric.indexOf(key)>-1){ av=+av; bv=+bv; }
-      if(av<bv)return -1*dir; if(av>bv)return 1*dir; return 0;
+    var sortState={key:defaultKey,dir:defaultDir};
+    function sortBy(key,dir){
+      rows.sort(function(a,b){
+        var av=a.dataset[key],bv=b.dataset[key];
+        if(numericKeys.indexOf(key)>-1){ av=+av; bv=+bv; }
+        if(av<bv)return -1*dir; if(av>bv)return 1*dir; return 0;
+      });
+      rows.forEach(function(tr){tbody.appendChild(tr);});
+    }
+    tbl.querySelectorAll('th.sortable').forEach(function(th){
+      th.addEventListener('click',function(){
+        var key=th.dataset.key;
+        var dir = (sortState.key===key) ? -sortState.dir : 1;
+        sortState={key:key,dir:dir};
+        tbl.querySelectorAll('th.sortable').forEach(function(t){t.classList.remove('sorted','asc');});
+        th.classList.add('sorted'); if(dir===1)th.classList.add('asc');
+        sortBy(key,dir);
+      });
     });
-    rows.forEach(function(tr){tbody.appendChild(tr);});
   }
-  tbl.querySelectorAll('th.sortable').forEach(function(th){
-    th.addEventListener('click',function(){
-      var key=th.dataset.key;
-      var dir = (sortState.key===key) ? -sortState.dir : 1;
-      sortState={key:key,dir:dir};
-      tbl.querySelectorAll('th.sortable').forEach(function(t){t.classList.remove('sorted','asc');});
-      th.classList.add('sorted'); if(dir===1)th.classList.add('asc');
-      sortBy(key,dir);
-    });
-  });
+
+  setupTable('tblPres','rowCountP','searchBoxP',
+    ['pres26','convocados','presc','pct'], 'pct', 1);
+  setupTable('tblAdmit','rowCountA','searchBoxA',
+    ['pres26','admit26','presc','admitc','diff'], 'diff', 1);
 })();
 </script>"""
 
@@ -490,6 +534,12 @@ def build_inner(offers: list[dict], summary: dict) -> str:
     <b>{summary['n_admit_baja']}</b>.
   </div>
   <div class="chart-wrap">{admit_scatter}</div>
+  <div class="controls">
+    <input id="searchBoxA" class="search" type="text"
+      placeholder="Buscar carrera, campus o modalidad…">
+    <span id="rowCountA" class="count"></span>
+  </div>
+  <div class="tbl-wrap">{admit_table}</div>
   <p class="note">Fuente: `examen_control.csv` (personas convocadas según la
   estimación propia del criterio de la Comisión Técnica) y
   `metadata_control_2026.csv` (`src/scrape_control.py`, presentaron y
