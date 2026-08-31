@@ -41,6 +41,7 @@ sys.path.insert(0, str(ROOT))
 sys.path.insert(0, str(ANALYSIS_DIR))
 from examen_control_resultados import _canonicalize_control  # noqa: E402
 from examen_control import ACCENT_FIX, CONNECTORS  # noqa: E402
+from comparativa_2026 import gaussian_kde  # noqa: E402
 
 SRC_RESULTADOS = ROOT / "data" / "consolidated" / "resultados_todos.csv"
 SRC_CONTROL = ROOT / "data" / "consolidated" / "resultados_control_2026.csv"
@@ -480,6 +481,68 @@ def build_oferta_search(search_ofertas: list[dict]) -> str:
     return markup
 
 
+# --------------------------------------------------------------------------- #
+# Todas las ofertas, pareadas: en línea vs. control, una curva por persona
+# --------------------------------------------------------------------------- #
+PGRID = np.arange(0, 121, 1.0)
+PFW, PFH = 300, 150
+PML, PMR, PMT, PMB = 8, 8, 10, 22
+PBASE = PFH - PMB
+
+
+def _pfx(v: float) -> float:
+    return PML + min(max(v, 0), 120) / 120 * (PFW - PML - PMR)
+
+
+def _pair_facet_svg(a: np.ndarray, b: np.ndarray) -> str:
+    dens_a, dens_b = gaussian_kde(a, PGRID), gaussian_kde(b, PGRID)
+    gmax = max(dens_a.max(), dens_b.max())
+    amp = (PBASE - PMT) / gmax
+
+    def poly(d):
+        return " ".join(f"{_pfx(PGRID[i]):.1f},{PBASE - d[i]*amp:.2f}" for i in range(PGRID.size))
+
+    p = [f'<svg viewBox="0 0 {PFW} {PFH}" width="100%" preserveAspectRatio="xMidYMid meet">']
+    for t, anc in ((0, "start"), (60, "middle"), (120, "end")):
+        p.append(f'<line x1="{_pfx(t):.1f}" y1="{PBASE}" x2="{_pfx(t):.1f}" '
+                 f'y2="{PBASE+3}" class="tick"/>')
+        p.append(f'<text x="{_pfx(t):.1f}" y="{PBASE+15}" class="tickl" text-anchor="{anc}">{t}</text>')
+    p.append(f'<line x1="{PML}" y1="{PBASE}" x2="{PFW-PMR}" y2="{PBASE}" class="axis"/>')
+    p.append(f'<polygon class="fill-online" points="{PML},{PBASE:.1f} '
+             f'{poly(dens_a)} {PFW-PMR},{PBASE:.1f}"/>')
+    p.append(f'<polygon class="fill-control" points="{PML},{PBASE:.1f} '
+             f'{poly(dens_b)} {PFW-PMR},{PBASE:.1f}"/>')
+    p.append(f'<polyline class="yr online" points="{poly(dens_a)}"/>')
+    p.append(f'<polyline class="yr control" points="{poly(dens_b)}"/>')
+    mx_on = _pfx(float(np.median(a)))
+    p.append(f'<line x1="{mx_on:.1f}" y1="{PBASE}" x2="{mx_on:.1f}" y2="{PBASE-6}" class="med-online"/>')
+    mx_ct = _pfx(float(np.median(b)))
+    p.append(f'<line x1="{mx_ct:.1f}" y1="{PBASE}" x2="{mx_ct:.1f}" y2="{PBASE-9}" class="med-control"/>')
+    p.append('</svg>')
+    return "".join(p)
+
+
+def _pair_facet_card(o: dict, a: np.ndarray, b: np.ndarray) -> str:
+    modal = "" if o["modalidad"] == "escolarizado" else f" · {o['modalidad']}"
+    return (
+        f'<figure class="facet" data-carrera="{esc(o["carrera"].lower())}" '
+        f'data-campus="{esc(o["campus"].lower())}" data-modalidad="{esc(o["modalidad"])}">'
+        f'<figcaption><span class="ca">{esc(nice_name(o["carrera"]))}</span>'
+        f'<span class="cc">{esc(nice_name(o["campus"]))}{esc(modal)} · n={o["n"]}</span></figcaption>'
+        f'<div class="badge">mediana: en línea <b class="on">{np.median(a):.0f}</b> → '
+        f'control <b class="ct">{np.median(b):.0f}</b> ({o["median_delta"]:+.0f})</div>'
+        f'{_pair_facet_svg(a, b)}</figure>')
+
+
+def build_pair_facets(pairs: pd.DataFrame, by_oferta: list[dict]) -> str:
+    groups = {key: sub for key, sub in pairs.groupby(["carrera", "campus", "modalidad"])}
+    cards = []
+    for o in by_oferta:
+        sub = groups[(o["carrera"], o["campus"], o["modalidad"])]
+        cards.append(_pair_facet_card(o, sub["ac_26"].to_numpy(), sub["ac_ctrl"].to_numpy()))
+    return "".join(cards)
+
+
 def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
                  search_ofertas: list[dict]) -> str:
     heatmap = build_heatmap(pairs)
@@ -487,6 +550,7 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
     delta_hist = build_delta_hist(pairs)
     table = build_table(by_oferta)
     oferta_search = build_oferta_search(search_ofertas)
+    pair_facets = build_pair_facets(pairs, by_oferta)
     n_med_neg = sum(1 for o in by_oferta if o["median_delta"] < 0)
     n_med_pos = sum(1 for o in by_oferta if o["median_delta"] > 0)
 
@@ -581,6 +645,25 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
 .catdot.cat1 {{ background:var(--ctrl); }}
 .catdot.cat2 {{ background:var(--cat26); }}
 .catdot.cat3 {{ background:var(--muted); }}
+.grid-f {{ display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:10px; margin-top:8px; }}
+.facet {{ background:var(--surface-1); border:1px solid var(--border); border-radius:10px;
+  padding:8px 8px 2px; margin:0; }}
+.facet figcaption {{ display:flex; flex-direction:column; line-height:1.25; }}
+.facet .ca {{ font-size:12px; font-weight:600; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.facet .cc {{ font-size:10.5px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }}
+.facet .badge {{ font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; margin:2px 0 0; }}
+.facet .badge b.on {{ color:var(--cat26); }}
+.facet .badge b.ct {{ color:var(--ctrl); }}
+.tick {{ stroke:var(--axis); stroke-width:1; }}
+.tickl {{ fill:var(--muted); font-size:9.5px; font-variant-numeric:tabular-nums; }}
+.yr {{ fill:none; stroke-width:1.6; }}
+.yr.online {{ stroke:var(--cat26); stroke-width:2; }}
+.yr.control {{ stroke:var(--ctrl); stroke-width:2.2; }}
+.med-online {{ stroke:var(--cat26); stroke-width:1.4; }}
+.med-control {{ stroke:var(--ctrl); stroke-width:2; }}
+.fill-online {{ fill:var(--cat26); fill-opacity:.10; stroke:none; }}
+.fill-control {{ fill:var(--ctrl); fill-opacity:.14; stroke:none; }}
+@media (max-width:720px) {{ .grid-f {{ grid-template-columns:repeat(1,minmax(0,1fr)); }} }}
 </style>"""
 
     js = """
@@ -705,12 +788,44 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
   oficial publicado en los dos exámenes y ≥{MIN_N} personas pareadas —
   esas son las que se pueden buscar aquí.</p>
   {oferta_search}
+  <h2>Todas las ofertas, pareadas: en línea vs. control</h2>
+  <p class="sub">Las mismas {summary['n_matched']:,} personas de arriba, ahora
+  una curva de densidad por oferta — <b style="color:var(--cat26)">en línea
+  2026</b> contra <b style="color:var(--ctrl)">control</b>, ambas con SOLO
+  quienes presentaron los dos exámenes. Orden: mayor caída primero.</p>
+  <div class="controls">
+    <input id="searchBoxF" class="search" type="text"
+      placeholder="Buscar carrera, campus o modalidad…">
+    <span id="rowCountF" class="count"></span>
+  </div>
+  <div class="grid-f" id="facetGrid">{pair_facets}</div>
   <p class="note">Fuente: resultados DGAE-UNAM, examen en línea 2026 y examen
   de control presencial 2026, pareados por carrera+campus+modalidad+número
   de comprobante. Ofertas con ≥{MIN_N} personas pareadas. Mapa de calor:
   color más intenso = más personas en esa celda (escala logarítmica).
-  Análisis descriptivo.</p>
+  Densidad por KDE gaussiano; marca vertical = mediana. Análisis descriptivo.</p>
   {js}
+<script>
+(function(){{
+  var grid=document.getElementById('facetGrid');
+  var cards=Array.prototype.slice.call(grid.querySelectorAll('.facet'));
+  var countEl=document.getElementById('rowCountF');
+  var searchEl=document.getElementById('searchBoxF');
+  function applyFilter(){{
+    var q=(searchEl.value||'').toLowerCase().trim();
+    var shown=0;
+    cards.forEach(function(f){{
+      var hit=!q || f.dataset.carrera.indexOf(q)>-1 || f.dataset.campus.indexOf(q)>-1
+        || f.dataset.modalidad.toLowerCase().indexOf(q)>-1;
+      f.style.display=hit?'':'none';
+      if(hit)shown++;
+    }});
+    countEl.textContent='Mostrando '+shown+' de '+cards.length+' ofertas';
+  }}
+  searchEl.addEventListener('input',applyFilter);
+  applyFilter();
+}})();
+</script>
 </div>"""
 
 

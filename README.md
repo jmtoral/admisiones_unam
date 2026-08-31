@@ -718,16 +718,18 @@ mejoras").
     compara DISTRIBUCIONES por oferta, misma forma, distinta gente), este
     parea a la MISMA PERSONA entre 2026 en línea y el control por
     `numero_comprobante` (99.6% de coincidencia, 36,719 de 36,875 con
-    aciertos válido). Aciertos-en-línea vs. aciertos-en-control en dos
-    vistas lado a lado — mapa de calor agregado y dispersión a nivel de
-    punto (un punto por persona, sin folio ni identificador) — más un
-    histograma del cambio individual, tabla por oferta y un buscador que,
-    por carrera-campus, colorea a cada persona pareada en 4 categorías
-    (pasó en ambos / solo en línea / solo en control / en ninguno) según
-    el mínimo OFICIAL de cada examen. Sin filtro de tamaño (219 ofertas,
-    desde n=3). 95.4% de las personas sacó MENOS aciertos en el control
-    que en línea (mediana -30); la enorme mayoría de ofertas tuvo mediana
-    negativa — las pocas excepciones positivas son de muestra muy chica
+    aciertos válido). Aciertos-en-línea vs. aciertos-en-control a ancho
+    completo, agregado (mapa de calor) y a nivel de punto (un punto por
+    persona, sin folio ni identificador) — más un histograma del cambio
+    individual, tabla por oferta, un buscador que por carrera-campus
+    colorea a cada persona pareada en 4 categorías (pasó en ambos / solo
+    en línea / solo en control / en ninguno) según el mínimo OFICIAL de
+    cada examen, y al final una cuadrícula con las 219 ofertas (buscable),
+    cada una con sus dos curvas de densidad pareadas. Sin filtro de
+    tamaño (219 ofertas, desde n=3). 95.4% de las personas sacó MENOS
+    aciertos en el control que en línea (mediana -30); la enorme mayoría
+    de ofertas tuvo mediana negativa — las pocas excepciones positivas
+    son de muestra muy chica
     (n≤10). Reporta solo en agregado y a nivel de punto sin identificador,
     nunca comprobante-aciertos.
 
