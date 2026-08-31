@@ -449,10 +449,10 @@ def build_inner(offers: list[dict], summary: dict, top_k: int = TOP_K) -> str:
   <div class="tbl-wrap">{table}</div>
   <h2>{"Todas las" if top_k >= len(offers) else f"Top {top_k}"} ofertas por tamaño de muestra en el control</h2>
   <div class="grid-f">{facets}</div>
-  <p class="note">Fuente: resultados DGAE-UNAM. "En línea" y "2021–2025" de
-  `resultados_todos.csv`; "Control" de `resultados_control_2026.csv`
-  (`src/scrape_control.py`, examen de control presencial). Solo aspirantes
-  con aciertos numérico. Densidad por KDE gaussiano. Análisis descriptivo.</p>
+  <p class="note">Fuente: resultados DGAE-UNAM. "En línea" y "2021–2025" del
+  examen ordinario; "Control" del examen de control presencial. Solo
+  aspirantes con aciertos numérico. Densidad por KDE gaussiano. Análisis
+  descriptivo.</p>
 </div>"""
 
 

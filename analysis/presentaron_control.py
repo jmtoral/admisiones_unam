@@ -540,12 +540,13 @@ def build_inner(offers: list[dict], summary: dict) -> str:
     <span id="rowCountA" class="count"></span>
   </div>
   <div class="tbl-wrap">{admit_table}</div>
-  <p class="note">Fuente: `examen_control.csv` (personas convocadas según la
-  estimación propia del criterio de la Comisión Técnica) y
-  `metadata_control_2026.csv` (`src/scrape_control.py`, presentaron y
-  admitidos en el control). "Presentaron 2026 (total)" se muestra solo como
-  contexto — NO es el denominador del % de asistencia. Escalas logarítmica
-  (primer scatter) y lineal 0-100% (segundo). Análisis descriptivo.</p>
+  <p class="note">Fuente: resultados y metadata DGAE-UNAM, examen en línea
+  2026 y examen de control presencial 2026. "Personas convocadas" es una
+  estimación propia (criterio de la Comisión Técnica); presentaron y
+  admitidos en el control, de la metadata oficial. "Presentaron 2026
+  (total)" se muestra solo como contexto — NO es el denominador del % de
+  asistencia. Escalas logarítmica (primer scatter) y lineal 0-100%
+  (segundo). Análisis descriptivo.</p>
   {js}
 </div>"""
 

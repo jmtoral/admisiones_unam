@@ -334,9 +334,8 @@ details {{ margin-top:16px; }} summary {{ cursor:pointer; color:var(--text-secon
   <div class="grid-f">{facets}</div>
   <details><summary>Ver tabla (mínimo por año + control, {len(top)} ofertas)</summary>
     <div class="scroll">{table}</div></details>
-  <p class="note">Fuente: resultados y metadata DGAE-UNAM 2021–2026
-  (campo Aciertos Mínimos) y `metadata_control_2026.csv`
-  (`src/scrape_control.py`, examen de control presencial). El eje Y y el
+  <p class="note">Fuente: resultados y metadata DGAE-UNAM 2021–2026 (campo
+  Aciertos Mínimos) y del examen de control presencial 2026. El eje Y y el
   tamaño de los puntos de cada panel se escalan a su propio rango (destacan
   la forma, no comparan niveles absolutos entre paneles; ver la tabla para
   los valores). Análisis descriptivo.</p>
