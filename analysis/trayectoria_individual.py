@@ -683,12 +683,10 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
   <p class="sub">Dos vistas del mismo pareo: agregada (bins de {BIN} aciertos) y a
   nivel de punto (una marca por persona, con dispersión aleatoria leve para
   separar enteros superpuestos — no se muestra ningún folio ni identificador).</p>
-  <div class="grid-cmp">
-    <div><p class="mini">Mapa de calor (agregado)</p>
-      <div class="chart-wrap">{heatmap}</div></div>
-    <div><p class="mini">Dispersión (un punto = una persona)</p>
-      <div class="chart-wrap">{point_scatter}</div></div>
-  </div>
+  <p class="mini">Mapa de calor (agregado)</p>
+  <div class="chart-wrap">{heatmap}</div>
+  <p class="mini" style="margin-top:14px;">Dispersión (un punto = una persona)</p>
+  <div class="chart-wrap">{point_scatter}</div>
   <h2>Cuánto cambió cada persona (control − en línea)</h2>
   <div class="chart-wrap">{delta_hist}</div>
   <h2>Por oferta (mediana del cambio individual)</h2>
