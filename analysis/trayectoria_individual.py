@@ -8,14 +8,17 @@ presentaron el control (36,719 de 36,875) tienen comprobante que aparece en
 el registro de 2026 de la misma oferta. Eso permite parear a cada persona
 consigo misma: sus aciertos en línea vs. sus aciertos en control.
 
-Privacidad: se reporta EXCLUSIVAMENTE en agregado (mapa de calor binned,
-histograma de cambios, medianas por oferta) — nunca una lista de personas ni
-pares comprobante-aciertos identificables. Ver CLAUDE.md, "No difundas datos
-a nivel de aspirante individual fuera del uso agregado".
+Privacidad: además de las vistas agregadas (mapa de calor, histograma,
+medianas por oferta) se muestra un scatter a nivel de punto — un punto por
+persona, incluida la sección de "quién pasó cada mínimo" por oferta — pero
+NUNCA con el número de comprobante ni otro identificador junto al punto.
+Ver CLAUDE.md, "No difundas datos a nivel de aspirante individual fuera del
+uso agregado", y la nota de la sección de puntos.
 
 Hallazgo: 95.4% de las personas pareadas sacó MENOS aciertos en el control
-que en línea (mediana -30); es así en las 167 ofertas con muestra
-suficiente (mediana de -3 a -50, nunca positiva). Análisis descriptivo.
+que en línea (mediana -30); casi universal por oferta (la enorme mayoría
+con mediana negativa; las pocas excepciones positivas son ofertas con
+muestra muy chica). Análisis descriptivo.
 
 Uso:  python analysis/trayectoria_individual.py
 Salidas en analysis/output/: trayectoria_individual.html/.png/_dark.png + .csv
@@ -45,7 +48,7 @@ META_2026 = ROOT / "data" / "consolidated" / "metadata_carreras.csv"
 META_CONTROL = ROOT / "data" / "consolidated" / "metadata_control_2026.csv"
 OUT_DIR = ROOT / "analysis" / "output"
 
-MIN_N = 30
+MIN_N = 1
 CTRL_LIGHT, CTRL_DARK = "#2f6fb0", "#6fa8dc"
 HL_LIGHT, HL_DARK = "#e0342a", "#ff5c4f"
 CATBOTH_LIGHT, CATBOTH_DARK = "#2e8b57", "#4ade80"
@@ -484,6 +487,8 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
     delta_hist = build_delta_hist(pairs)
     table = build_table(by_oferta)
     oferta_search = build_oferta_search(search_ofertas)
+    n_med_neg = sum(1 for o in by_oferta if o["median_delta"] < 0)
+    n_med_pos = sum(1 for o in by_oferta if o["median_delta"] > 0)
 
     css = f"""
 <style>
@@ -669,8 +674,10 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
     aciertos en el control que en línea, <b>{summary['pct_igual']:.1f}%</b>
     sacó lo mismo y <b>{summary['pct_sube']:.1f}%</b> sacó más — una mediana
     de <b>{summary['median_delta']:+.0f} aciertos</b> por persona. Es
-    consistente entre ofertas: de {len(by_oferta)} con muestra suficiente,
-    ninguna tuvo una mediana positiva.
+    consistente entre ofertas: de las {len(by_oferta)} con al menos una
+    persona pareada, <b>{n_med_neg}</b> tuvieron mediana negativa y solo
+    {n_med_pos} positiva — casi siempre en ofertas muy chicas (n≤10, ruido
+    de muestra pequeña; ver la tabla).
   </div>
   <h2>Aciertos en línea vs. en control, misma persona</h2>
   <p class="sub">Dos vistas del mismo pareo: agregada (bins de {BIN} aciertos) y a

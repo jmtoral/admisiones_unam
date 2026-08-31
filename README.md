@@ -706,10 +706,10 @@ mejoras").
   - `presentaron_control.py` — participación, no resultado: cuántas
     PERSONAS CONVOCADAS al control (estimación propia del criterio de
     `examen_control.py`, no el total que presentó en 2026 — esa base
-    sobreestimaría la ausencia) efectivamente lo presentaron (211 ofertas,
-    ≥10 convocadas). Scatter log-log + ranking de menor asistencia + tabla
-    completa. 64.7% de las convocadas presentó el control (mediana por
-    oferta: 67.0%); Médico Cirujano-Facultad de Medicina, la carrera
+    sobreestimaría la ausencia) efectivamente lo presentaron (220 ofertas,
+    sin filtro de tamaño). Scatter log-log + ranking de menor asistencia +
+    tabla completa. 64.7% de las convocadas presentó el control (mediana
+    por oferta: 66.9%); Médico Cirujano-Facultad de Medicina, la carrera
     insignia del resto de este análisis, quedó justo en la mediana
     (65.3%) — nada extremo. Segunda sección: entre quienes SÍ presentaron,
     la tasa de admisión subió de 14.2% (2026) a 55.8% (control) — el grupo
@@ -721,11 +721,15 @@ mejoras").
     aciertos válido). Aciertos-en-línea vs. aciertos-en-control en dos
     vistas lado a lado — mapa de calor agregado y dispersión a nivel de
     punto (un punto por persona, sin folio ni identificador) — más un
-    histograma del cambio individual y tabla por oferta (≥30 pareadas).
-    95.4% de las personas sacó MENOS aciertos en el control que en línea
-    (mediana -30); consistente en las 167 ofertas con muestra suficiente —
-    ninguna tuvo mediana positiva (rango -50 a -3). Reporta solo en
-    agregado, nunca listas de personas.
+    histograma del cambio individual, tabla por oferta y un buscador que,
+    por carrera-campus, colorea a cada persona pareada en 4 categorías
+    (pasó en ambos / solo en línea / solo en control / en ninguno) según
+    el mínimo OFICIAL de cada examen. Sin filtro de tamaño (219 ofertas,
+    desde n=3). 95.4% de las personas sacó MENOS aciertos en el control
+    que en línea (mediana -30); la enorme mayoría de ofertas tuvo mediana
+    negativa — las pocas excepciones positivas son de muestra muy chica
+    (n≤10). Reporta solo en agregado y a nivel de punto sin identificador,
+    nunca comprobante-aciertos.
 
 ### Sitio (GitHub Pages)
 

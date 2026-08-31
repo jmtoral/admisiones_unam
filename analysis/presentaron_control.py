@@ -49,7 +49,7 @@ import examen_control as ec  # noqa: E402
 SRC_CONTROL = ROOT / "data" / "consolidated" / "metadata_control_2026.csv"
 OUT_DIR = ROOT / "analysis" / "output"
 
-MIN_N = 10
+MIN_N = 1
 TOP_K = 20
 CTRL_LIGHT, CTRL_DARK = "#2f6fb0", "#6fa8dc"
 
