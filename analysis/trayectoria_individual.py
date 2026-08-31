@@ -41,11 +41,21 @@ from examen_control import ACCENT_FIX, CONNECTORS  # noqa: E402
 
 SRC_RESULTADOS = ROOT / "data" / "consolidated" / "resultados_todos.csv"
 SRC_CONTROL = ROOT / "data" / "consolidated" / "resultados_control_2026.csv"
+META_2026 = ROOT / "data" / "consolidated" / "metadata_carreras.csv"
+META_CONTROL = ROOT / "data" / "consolidated" / "metadata_control_2026.csv"
 OUT_DIR = ROOT / "analysis" / "output"
 
 MIN_N = 30
 CTRL_LIGHT, CTRL_DARK = "#2f6fb0", "#6fa8dc"
+HL_LIGHT, HL_DARK = "#e0342a", "#ff5c4f"
+CATBOTH_LIGHT, CATBOTH_DARK = "#2e8b57", "#4ade80"
 _TOKEN_RE = re.compile(r"^(\W*)(\w*)(\W*)$", re.UNICODE)
+
+# Categorías de pase/no-pase según el mínimo OFICIAL de cada examen
+# (aciertos_minimos publicado, no la convocatoria estimada de examen_control.py).
+CAT_AMBOS, CAT_SOLO_CTRL, CAT_SOLO_26, CAT_NINGUNO = 0, 1, 2, 3
+CAT_LABELS = ["Pasó en ambos escenarios", "No pasó en línea, pero sí en control",
+              "Pasó en línea, pero no en control", "No pasó en ningún escenario"]
 
 
 def esc(s) -> str:
@@ -114,7 +124,54 @@ def load():
         })
     by_oferta.sort(key=lambda o: o["median_delta"])
 
-    return merged[["ac_26", "ac_ctrl", "delta"]], summary, by_oferta
+    # Mínimos OFICIALES publicados (aciertos_minimos), uno por examen — no la
+    # convocatoria estimada de examen_control.py. Se usan para clasificar a
+    # cada persona pareada en pasó/no pasó, por examen.
+    m26 = pd.read_csv(META_2026, dtype=str, keep_default_na=False, na_filter=False)
+    m26["year"] = m26["year"].astype(int)
+    m26 = m26[m26["year"] == 2026].copy()
+    m26["min_online"] = pd.to_numeric(m26["aciertos_minimos"], errors="coerce")
+    m26 = (m26[["carrera", "campus", "modalidad", "min_online"]]
+           .drop_duplicates(subset=["carrera", "campus", "modalidad"]))
+
+    mctrl = pd.read_csv(META_CONTROL, dtype=str, keep_default_na=False, na_filter=False)
+    mctrl = _canonicalize_control(mctrl)
+    mctrl["min_control"] = pd.to_numeric(mctrl["aciertos_minimos"], errors="coerce")
+    mctrl = (mctrl[["carrera", "campus", "modalidad", "min_control"]]
+             .drop_duplicates(subset=["carrera", "campus", "modalidad"]))
+
+    merged = merged.merge(m26, on=["carrera", "campus", "modalidad"], how="left")
+    merged = merged.merge(mctrl, on=["carrera", "campus", "modalidad"], how="left")
+
+    tiene_minimos = merged["min_online"].notna() & merged["min_control"].notna()
+    p26 = merged["ac_26"] >= merged["min_online"]
+    pctrl = merged["ac_ctrl"] >= merged["min_control"]
+    cat = np.select(
+        [p26 & pctrl, (~p26) & pctrl, p26 & (~pctrl), (~p26) & (~pctrl)],
+        [CAT_AMBOS, CAT_SOLO_CTRL, CAT_SOLO_26, CAT_NINGUNO], default=-1)
+    merged["cat"] = np.where(tiene_minimos, cat, -1)
+
+    search_ofertas = []
+    con_minimos = merged[merged["cat"] >= 0]
+    for (car, cam, mod), sub in con_minimos.groupby(["carrera", "campus", "modalidad"]):
+        if len(sub) < MIN_N:
+            continue
+        cats = sub["cat"].to_numpy()
+        n = len(sub)
+        pct = [float((cats == c).mean() * 100) for c in (CAT_AMBOS, CAT_SOLO_CTRL, CAT_SOLO_26, CAT_NINGUNO)]
+        search_ofertas.append({
+            "carrera": car, "campus": cam, "modalidad": mod,
+            "min_online": int(sub["min_online"].iloc[0]),
+            "min_control": int(sub["min_control"].iloc[0]),
+            "n": n, "pct": pct,
+            "xs": sub["ac_26"].astype(int).tolist(),
+            "ys": sub["ac_ctrl"].astype(int).tolist(),
+            "cats": cats.astype(int).tolist(),
+        })
+    search_ofertas.sort(key=lambda o: (o["carrera"], o["campus"]))
+    summary["n_search_ofertas"] = len(search_ofertas)
+
+    return merged, summary, by_oferta, search_ofertas
 
 
 # --------------------------------------------------------------------------- #
@@ -301,26 +358,150 @@ def build_table(by_oferta: list[dict]) -> str:
             f'<tbody>{"".join(rows)}</tbody></table>')
 
 
-def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict]) -> str:
+# --------------------------------------------------------------------------- #
+# Buscador por oferta: dispersión pasó/no pasó según el mínimo de cada examen
+# --------------------------------------------------------------------------- #
+
+def build_oferta_search(search_ofertas: list[dict]) -> str:
+    data = []
+    for o in search_ofertas:
+        modal = "" if o["modalidad"] == "escolarizado" else f" · {o['modalidad']}"
+        label = f'{nice_name(o["carrera"])} — {nice_name(o["campus"])}{modal}'
+        # key de búsqueda: minúsculas SIN acentos (como el resto de las cajas
+        # de búsqueda de este sitio) para que "medico" encuentre "Médico".
+        key = f'{o["carrera"]} {o["campus"]} {o["modalidad"]}'.lower()
+        data.append({
+            "label": label, "key": key, "carrera": nice_name(o["carrera"]),
+            "campus": nice_name(o["campus"]) + modal,
+            "min26": o["min_online"], "minc": o["min_control"],
+            "n": o["n"], "pct": [round(v, 1) for v in o["pct"]],
+            "xs": o["xs"], "ys": o["ys"], "cats": o["cats"],
+        })
+    # script[type=application/json] es "raw text": no se decodifican entidades
+    # HTML, así que NO se debe html-escapar aquí — solo neutralizar "</" para
+    # que un valor con esa secuencia no cierre la etiqueta antes de tiempo.
+    data_json = json.dumps(data, separators=(",", ":")).replace("</", "<\\/")
+
+    markup = f"""
+  <div class="oferta-search">
+    <input id="ofertaSearch" class="search" type="text" autocomplete="off"
+      placeholder="Buscar carrera, campus o modalidad…">
+    <div id="ofertaResults" class="oferta-results"></div>
+  </div>
+  <div class="grid-cmp" style="margin-top:12px;">
+    <div><div class="chart-wrap" id="ofertaChartBox"></div></div>
+    <div id="ofertaLegend"></div>
+  </div>
+  <script type="application/json" id="ofertaData">{data_json}</script>
+  <script>
+(function(){{
+  var DATA = JSON.parse(document.getElementById('ofertaData').textContent);
+  var CATLBL = {json.dumps(CAT_LABELS)};
+  var input = document.getElementById('ofertaSearch');
+  var results = document.getElementById('ofertaResults');
+  var chartBox = document.getElementById('ofertaChartBox');
+  var legendBox = document.getElementById('ofertaLegend');
+
+  function renderChart(idx){{
+    var d = DATA[idx];
+    var W=560, H=460, ML=54, MR=16, MT=20, MB=44;
+    var iw=W-ML-MR, ih=H-MT-MB;
+    function px(v){{ return ML+v/120*iw; }}
+    function py(v){{ return (H-MB)-v/120*ih; }}
+    var p=['<svg viewBox="0 0 '+W+' '+H+'" width="100%" preserveAspectRatio="xMidYMid meet">'];
+    for(var t=0;t<=120;t+=20){{
+      var x=px(t), y=py(t);
+      p.push('<line x1="'+x.toFixed(1)+'" y1="'+MT+'" x2="'+x.toFixed(1)+'" y2="'+(H-MB)+'" class="gridl"/>');
+      p.push('<text x="'+x.toFixed(1)+'" y="'+(H-MB+16)+'" class="axl" text-anchor="middle">'+t+'</text>');
+      p.push('<line x1="'+ML+'" y1="'+y.toFixed(1)+'" x2="'+(W-MR)+'" y2="'+y.toFixed(1)+'" class="gridl"/>');
+      p.push('<text x="'+(ML-8)+'" y="'+(y+3).toFixed(1)+'" class="axl" text-anchor="end">'+t+'</text>');
+    }}
+    var mx=px(d.min26), my=py(d.minc);
+    p.push('<line x1="'+mx.toFixed(1)+'" y1="'+MT+'" x2="'+mx.toFixed(1)+'" y2="'+(H-MB)+'" class="thresh"/>');
+    p.push('<line x1="'+ML+'" y1="'+my.toFixed(1)+'" x2="'+(W-MR)+'" y2="'+my.toFixed(1)+'" class="thresh"/>');
+    p.push('<text x="'+(ML+iw/2)+'" y="'+(MT-6)+'" class="axl reflbl" text-anchor="middle">mín. en línea '+d.min26+' · mín. control '+d.minc+'</text>');
+    for(var i=0;i<d.xs.length;i++){{
+      var jx=(Math.random()-0.5)*0.85, jy=(Math.random()-0.5)*0.85;
+      var cx=px(d.xs[i]+jx), cy=py(d.ys[i]+jy);
+      p.push('<circle cx="'+cx.toFixed(1)+'" cy="'+cy.toFixed(1)+'" r="2.1" class="pt cat'+d.cats[i]+'"/>');
+    }}
+    p.push('<text x="'+(ML+iw/2)+'" y="'+(H-8)+'" class="axtitle" text-anchor="middle">aciertos en línea, 2026</text>');
+    p.push('<text x="14" y="'+(MT+ih/2)+'" class="axtitle" text-anchor="middle" transform="rotate(-90 14 '+(MT+ih/2)+')">aciertos en control</text>');
+    p.push('</svg>');
+    chartBox.innerHTML = p.join('');
+
+    var rows = CATLBL.map(function(l,i){{
+      return '<span class="catrow"><i class="catdot cat'+i+'"></i>'+l+
+             ': <b>'+d.pct[i].toFixed(1)+'%</b></span>';
+    }}).join('');
+    legendBox.innerHTML =
+      '<p class="mini" style="font-size:13px;margin-bottom:2px;">'+d.carrera+'</p>'+
+      '<p class="method" style="margin-bottom:8px;">'+d.campus+'</p>'+
+      '<p class="method">n = '+d.n.toLocaleString('es-MX')+' personas presentaron ambos '+
+      'exámenes. Mínimo en línea 2026: <b>'+d.min26+'</b> · Mínimo control: <b>'+d.minc+'</b></p>'+
+      '<div class="catlegend">'+rows+'</div>';
+  }}
+
+  function renderResults(q){{
+    q=(q||'').toLowerCase().trim();
+    var matches=[];
+    for(var i=0;i<DATA.length && matches.length<8;i++){{
+      if(!q || DATA[i].key.indexOf(q)>-1) matches.push(i);
+    }}
+    results.innerHTML = matches.map(function(i){{
+      return '<div class="oferta-item" data-i="'+i+'">'+DATA[i].label+'</div>';
+    }}).join('');
+    results.style.display = matches.length ? 'block' : 'none';
+    results.querySelectorAll('.oferta-item').forEach(function(el){{
+      el.addEventListener('click', function(){{
+        var i=+el.dataset.i;
+        renderChart(i);
+        input.value=DATA[i].label;
+        results.style.display='none';
+      }});
+    }});
+  }}
+
+  input.addEventListener('input', function(){{ renderResults(input.value); }});
+  input.addEventListener('focus', function(){{ renderResults(input.value); }});
+  document.addEventListener('click', function(e){{
+    if(e.target!==input && !results.contains(e.target)) results.style.display='none';
+  }});
+
+  var defIdx=0, maxN=-1;
+  DATA.forEach(function(d,i){{ if(d.n>maxN){{maxN=d.n; defIdx=i;}} }});
+  input.value = DATA[defIdx].label;
+  renderChart(defIdx);
+}})();
+  </script>"""
+    return markup
+
+
+def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
+                 search_ofertas: list[dict]) -> str:
     heatmap = build_heatmap(pairs)
     point_scatter = build_point_scatter(pairs)
     delta_hist = build_delta_hist(pairs)
     table = build_table(by_oferta)
+    oferta_search = build_oferta_search(search_ofertas)
 
     css = f"""
 <style>
 .viz-root {{ color-scheme:light; --surface-1:#fcfcfb; --plane:#f9f9f7;
   --text-primary:#0b0b0b; --text-secondary:#52514e; --muted:#898781;
   --grid:#e1e0d9; --axis:#c3c2b7; --border:rgba(11,11,11,.10); --ctrl:{CTRL_LIGHT};
+  --cat26:{HL_LIGHT}; --catboth:{CATBOTH_LIGHT};
   font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
   background:var(--plane); color:var(--text-primary); padding:24px; max-width:1080px; margin:0 auto; }}
 @media (prefers-color-scheme:dark) {{ :root:where(:not([data-theme="light"])) .viz-root {{
   color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d; --text-primary:#fff;
   --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a; --axis:#383835;
-  --border:rgba(255,255,255,.10); --ctrl:{CTRL_DARK}; }} }}
+  --border:rgba(255,255,255,.10); --ctrl:{CTRL_DARK};
+  --cat26:{HL_DARK}; --catboth:{CATBOTH_DARK}; }} }}
 :root[data-theme="dark"] .viz-root {{ color-scheme:dark; --surface-1:#1a1a19; --plane:#0d0d0d;
   --text-primary:#fff; --text-secondary:#c3c2b7; --muted:#898781; --grid:#2c2c2a;
-  --axis:#383835; --border:rgba(255,255,255,.10); --ctrl:{CTRL_DARK}; }}
+  --axis:#383835; --border:rgba(255,255,255,.10); --ctrl:{CTRL_DARK};
+  --cat26:{HL_DARK}; --catboth:{CATBOTH_DARK}; }}
 .viz-root h1 {{ font-size:20px; margin:0 0 4px; text-wrap:balance; }}
 .viz-root h2 {{ font-size:14px; margin:22px 0 6px; }}
 .sub {{ color:var(--text-secondary); font-size:13px; margin:0 0 3px; line-height:1.5; }}
@@ -372,6 +553,29 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict]) -> st
 .tbl td.hl {{ color:var(--ctrl); font-weight:600; }}
 .tbl tbody tr:hover {{ background:var(--plane); }}
 .note {{ color:var(--muted); font-size:12px; margin:14px 0 0; line-height:1.5; }}
+.oferta-search {{ position:relative; margin-top:10px; }}
+.oferta-search .search {{ width:100%; box-sizing:border-box; }}
+.oferta-results {{ display:none; position:absolute; z-index:5; left:0; right:0;
+  background:var(--surface-1); border:1px solid var(--border); border-radius:8px;
+  margin-top:4px; max-height:230px; overflow:auto;
+  box-shadow:0 6px 18px rgba(0,0,0,.16); }}
+.oferta-item {{ padding:7px 11px; font-size:13px; cursor:pointer; }}
+.oferta-item:hover {{ background:var(--plane); color:var(--ctrl); }}
+.thresh {{ stroke:var(--muted); stroke-width:1.3; stroke-dasharray:5 3; }}
+.pt {{ stroke:none; }}
+.pt.cat0 {{ fill:var(--catboth); fill-opacity:.8; }}
+.pt.cat1 {{ fill:var(--ctrl); fill-opacity:.8; }}
+.pt.cat2 {{ fill:var(--cat26); fill-opacity:.8; }}
+.pt.cat3 {{ fill:var(--muted); fill-opacity:.45; }}
+.catlegend {{ display:flex; flex-direction:column; gap:7px; font-size:12.5px;
+  color:var(--text-secondary); margin-top:4px; }}
+.catrow b {{ color:var(--text-primary); }}
+.catdot {{ display:inline-block; width:9px; height:9px; border-radius:50%;
+  margin-right:6px; vertical-align:middle; }}
+.catdot.cat0 {{ background:var(--catboth); }}
+.catdot.cat1 {{ background:var(--ctrl); }}
+.catdot.cat2 {{ background:var(--cat26); }}
+.catdot.cat3 {{ background:var(--muted); }}
 </style>"""
 
     js = """
@@ -487,11 +691,20 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict]) -> st
     <span id="rowCountT" class="count"></span>
   </div>
   <div class="tbl-wrap">{table}</div>
-  <p class="note">Fuente: `resultados_todos.csv` (2026 en línea) y
-  `resultados_control_2026.csv` (`src/scrape_control.py`), pareados por
-  carrera+campus+modalidad+número de comprobante. Ofertas con
-  ≥{MIN_N} personas pareadas. Mapa de calor: color más intenso = más
-  personas en esa celda (escala logarítmica). Análisis descriptivo.</p>
+  <h2>Buscar una oferta: ¿quién pasó cada mínimo?</h2>
+  <p class="sub">Usa el mínimo OFICIAL publicado de cada examen (no la
+  convocatoria estimada de <a href="examen-control.html">"¿a quién
+  convocar?"</a>) para clasificar a cada persona pareada en cuatro grupos:
+  pasó en ambos, solo en línea, solo en control, o en ninguno. Solo
+  {summary['n_search_ofertas']} de {len(by_oferta)} ofertas tienen mínimo
+  oficial publicado en los dos exámenes y ≥{MIN_N} personas pareadas —
+  esas son las que se pueden buscar aquí.</p>
+  {oferta_search}
+  <p class="note">Fuente: resultados DGAE-UNAM, examen en línea 2026 y examen
+  de control presencial 2026, pareados por carrera+campus+modalidad+número
+  de comprobante. Ofertas con ≥{MIN_N} personas pareadas. Mapa de calor:
+  color más intenso = más personas en esa celda (escala logarítmica).
+  Análisis descriptivo.</p>
   {js}
 </div>"""
 
@@ -504,9 +717,10 @@ def _standalone(inner: str) -> str:
 
 def main() -> None:
     OUT_DIR.mkdir(parents=True, exist_ok=True)
-    pairs, summary, by_oferta = load()
+    pairs, summary, by_oferta, search_ofertas = load()
     print("resumen:", summary)
     print(f"ofertas con >= {MIN_N} pareadas: {len(by_oferta)}")
+    print(f"ofertas buscables (mínimo oficial en ambos exámenes): {len(search_ofertas)}")
     print("las 5 con mediana MENOS negativa (menos caída):")
     for o in by_oferta[-5:]:
         print(f"  {o['median_delta']:+.0f}  n={o['n']}  {o['carrera'][:30]} - {o['campus'][:22]}")
@@ -516,7 +730,7 @@ def main() -> None:
 
     pd.DataFrame(by_oferta).to_csv(OUT_DIR / "trayectoria_individual.csv", index=False, encoding="utf-8")
 
-    inner = build_inner(pairs, summary, by_oferta)
+    inner = build_inner(pairs, summary, by_oferta, search_ofertas)
     (OUT_DIR / "trayectoria_individual.html").write_text(inner, encoding="utf-8")
     (OUT_DIR / "_trayectoria_individual_preview.html").write_text(
         _standalone(inner), encoding="utf-8")
