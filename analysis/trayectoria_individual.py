@@ -181,8 +181,8 @@ def load():
 # --------------------------------------------------------------------------- #
 # Mapa de calor: aciertos 2026 (x) vs. aciertos control (y), binned
 # --------------------------------------------------------------------------- #
-SW, SH = 620, 480
-SML, SMR, SMT, SMB = 54, 16, 16, 44
+SW, SH = 560, 560
+SML, SMR, SMT, SMB = 56, 14, 14, 56
 BIN = 5
 EDGES = np.arange(0, 125, BIN)
 XLABEL = "aciertos en línea, 2026 (misma persona)"
@@ -408,7 +408,7 @@ def build_oferta_search(search_ofertas: list[dict]) -> str:
 
   function renderChart(idx){{
     var d = DATA[idx];
-    var W=560, H=460, ML=54, MR=16, MT=20, MB=44;
+    var W=560, H=560, ML=56, MR=14, MT=24, MB=46;
     var iw=W-ML-MR, ih=H-MT-MB;
     function px(v){{ return ML+v/120*iw; }}
     function py(v){{ return (H-MB)-v/120*ih; }}
@@ -591,7 +591,7 @@ def build_inner(pairs: pd.DataFrame, summary: dict, by_oferta: list[dict],
 .gridl {{ stroke:var(--grid); stroke-width:1; }}
 .axis {{ stroke:var(--axis); stroke-width:1; }}
 .axl {{ fill:var(--muted); font-size:10px; font-variant-numeric:tabular-nums; }}
-.axtitle {{ fill:var(--text-secondary); font-size:11px; }}
+.axtitle {{ fill:var(--text-secondary); font-size:13px; font-weight:500; }}
 .refline {{ stroke:var(--axis); stroke-width:1.3; stroke-dasharray:4 3; }}
 .reflbl {{ font-size:9.5px; }}
 .cell {{ fill:var(--ctrl); stroke:none; cursor:pointer; }}
